@@ -1,0 +1,380 @@
+Ole Messelts vei:bal
+Grevlingveien:bbj
+Sognsvannsveien:bna
+Veitvetsvingen:bbj
+Vestveien:bun
+Glads vei:bna
+Rådyrveien:bbj
+Årvollveien:bbj
+Nordåssløyfa:bsn
+Silurveien:bun
+Skullerudbakken:bos
+Lybekkveien:bva
+Østhornveien:bna
+Sømveien:bna
+Lærer Holes vei:bva
+Rosenhoffgata:bga
+Lilleakerveien:bun
+Tuengen allé:bva
+Neuberggata:bfr
+Kantarellen terrasse:bsn
+Bauneveien:bns
+Lovisenberggata:bsh
+Damstredet:bsh
+Hesselbergs gate:bga
+Ekebergveien:bgo
+Vossegata:bsa
+Langliveien:bva
+Vækerøveien:bun
+Rolf E. Stenersens allé:bna
+Godals vei:bna
+Stavangergata:bsa
+Åmotveien:bna
+Kleiva:bsr
+Bakkehaugveien:bna
+Flaenveien:bgr
+Østgaards gate:bsa
+Zinoberveien:bva
+Karistuveien:bns
+Haugerudhagan:bal
+Kirkeveien:bfr
+Lindebergveien:bal
+Helgesens gate:bga
+Brannfjellveien:bns
+Kongsstien:bns
+Hellerudsvingen:bos
+Vidsynveien:bga
+Bekkelagsterrassen:bns
+Fyrstikkbakken:bal
+Samvirkeveien:bns
+Røaknekken:bva
+Røatoppen:bva
+Nordengveien:bva
+Damveien:bna
+Aschehougs vei:bna
+Østvollveien:bns
+Prinsessealléen:bun
+Brattvollveien:bns
+Bjartveien:bos
+Vækerø terrasse:bun
+Hellerudfaret:bos
+Støttumveien:bns
+Radarveien:bns
+Maridalsveien:bga
+Arnebråtveien:bva
+Brolandsveien:bsr
+Steingrims vei:bns
+Bjørnveien:bva
+Dælenenggata:bga
+Odvar Solbergs vei:bgr
+Rødbergveien:bbj
+Fagertunveien:bun
+Vestbysvingen:bgr
+President Harbitz' gate:bfr
+Haakon Tveters vei:bos
+Leirskallen:bns
+Heggelibakken:bva
+Hauketosvingen:bsn
+Ostadalsveien:bva
+Ivar Aasens vei:bva
+Griniveien:bva
+Linhusveien:bva
+Kongleveien:bna
+Eiriks gate:bgo
+Humleveien:bna
+Carl Grøndahls vei:bna
+Årrundveien:bbj
+Sannergata:bga
+Karl Staaffs vei:bal
+Normannsgata:bgo
+Thaulows vei:bva
+Hoffsjef Løvenskiolds vei:bun
+Pasopveien:bsn
+Ringshusveien:bns
+Midttunveien:bns
+von Øtkens vei:bns
+Aspestien:bns
+Toppåsveien:bsn
+Guvernørens vei:bun
+Elvefaret:bva
+Østmarkveien:bos
+Fjellstuveien:bsr
+Saturnveien:bna
+Fredensborgveien:bsh
+Skjønnhaugveien:bns
+Ekraveien:bva
+Kapellveien:bna
+Kildeveien:bbj
+Stasjonsveien:bva
+Solfjellshøgda:bns
+Bogerudveien:bos
+Kjelsåsveien:bna
+Flaengrenda:bgr
+Norderhovgata:bgo
+Adam Hiorths vei:bga
+Økernveien:bgo
+Carl Kjelsens vei:bna
+Nordliveien:bga
+Evens gate:bgo
+Øvre Smestadvei:bva
+Solkroken:bal
+Hegdehaugsveien:bfr
+Ljabruveien:bns
+Prestegårdsveien:bna
+Simensbråtveien:bns
+Munkerudvollen:bns
+Huldreveien:bva
+Østreheimsveien:bbj
+Steinliveien:bns
+Lunnestien:bos
+Peter Aas' vei:bos
+Ullernchausséen:bun
+Røahagan:bva
+Holmenkollveien:bva
+Sørkedalsveien:bfr
+Irisveien:bna
+Trondheimsveien:bga
+Konventveien:bun
+Dalsveien:bva
+Høydalsveien:bsn
+Holgerslystveien:bun
+Berglyveien:bsn
+Holmenveien:bva
+Mosseveien:bgo
+Olleveien:bns
+Hellerudveien:bal
+Ammerudveien:bgr
+Konows gate:bgo
+Solåsveien:bos
+Østbyfaret:bos
+Vestbyveien:bgr
+Ullensakergata:bgo
+Manglerudveien:bos
+Disenveien:bna
+St. Edmunds vei:bun
+Lofthusveien:bna
+Østbakken:bun
+Ellen Gleditsch' vei:bsr
+Nordlysveien:bna
+Gamlelinja:bsn
+Claus Borchs vei:bna
+Ole Moes vei:bns
+Biskop Heuchs vei:bna
+Øvre Prinsdals vei:bsn
+Fugleliveien:bos
+Kildals vei:bos
+Tingstuveien:bun
+Larsbråtveien:bal
+Havnabakken:bna
+Storoveien:bna
+Karl Flods vei:bgr
+Nuggerudveien:bsr
+Solveien:bns
+Skogvollveien:bbj
+Bjørnehiet:bva
+Inkognito terrasse:bfr
+Seterliveien:bns
+Låveveien:bos
+Skøyen allé:bos
+Grorudbakken:bgr
+Nordraaks gate:bfr
+Trosterudveien:bva
+Nordalveien:bbj
+Konvallveien:bna
+Nedre Prinsdals vei:bsn
+Hjemliveien:bos
+Brobekkveien:bbj
+Vingolfveien:bns
+John Colletts allé:bna
+Disengrenda:bna
+Thereses gate:bsh
+Herregårdsveien:bns
+Risløkkveien:bbj
+Lønnhaugen allé:bva
+Mårveien:bna
+Gregers Grams vei:bun
+Østbyveien:bos
+Tåsen terrasse:bna
+Eikelundveien:bna
+Charlotte Andersens vei:bva
+Anton Tschudis vei:bbj
+Sturlas vei:bva
+Rundtjernveien:bal
+Gråbrødreveien:bun
+Langgata:bga
+Solskinnsveien:bva
+Åsstubben:bun
+Hanåveien:bsn
+Enebakkveien:bgo
+Sandstuveien:bns
+Vestengsvingen:bns
+Tromsøgata:bga
+Haakon den godes vei:bva
+Marsveien:bna
+Sophus Lies gate:bfr
+Nils Lauritssøns vei:bna
+Borgenveien:bva
+Munkerudveien:bns
+Nobels gate:bfr
+Blåsbortveien:bna
+Husebygrenda:bva
+Lillevannsveien:bva
+Huk aveny:bfr
+Einerveien:bns
+Raschs vei:bns
+Slyngveien:bva
+Apalveien:bva
+Marienlundveien:bns
+Oberst Rodes vei:bns
+Morgedalsvegen:bun
+Sørligata:bgo
+Alunsjøveien:bgr
+Bølersletta:bos
+Breisjåveien:bga
+Th. Kittelsens vei:bun
+Kaptein Oppegaards vei:bns
+Rasmusbakken:bgr
+Smestadveien:bva
+Motbakkene:bos
+Måltrostveien:bva
+Tyslevveien:bns
+Melumveien:bva
+Paal Bergs vei:bos
+Skjerstadveien:bva
+Faunveien:bva
+Fayes gate:bsh
+Bestum tverrvei:bun
+Vålerenggata:bgo
+Iver Olsens vei:bna
+Ørakerstien:bun
+Svarttrostveien:bva
+Daniel Walstads vei:bna
+Veitvetveien:bbj
+Anne Maries vei:bva
+Øvre Lunden:bbj
+Ole Wingers vei:bgr
+Harald Løvenskiolds vei:bva
+Vestre Holmen vei:bva
+Fossumkroken:bsr
+Guristuveien:bos
+Bernt Knudsens vei:bns
+Strandhaugen:bns
+Mælosvingen:bns
+Skogholtveien:bns
+Strømsborgveien:bfr
+Madserud allé:bun
+Kåres vei:bns
+Nordbergbakken:bna
+Anna Pleyms vei:bsr
+Welding Olsens vei:bos
+Bygdøy allé:bfr
+Skogroveien:bns
+Kirkehaugsveien:bun
+Soelvolds vei:bun
+Hummerkloa:bns
+Bueveien:bna
+Mortensrudveien:bsn
+Karl Andersens vei:bsr
+Midtveien:bbj
+Norbygata:bgo
+Nordbergveien:bna
+Zetlitz' gate:bsh
+Kristianiasvingen:bva
+Sinsenveien:bga
+Fallanveien:bna
+Munkebekken:bal
+Austliveien:bva
+Hauges vei:bna
+Havna allé:bva
+Linjeveien:bsr
+Fagerliveien:bna
+Solheimgata:bfr
+Voksenliveien:bva
+Siriusveien:bna
+Oscars gate:bfr
+Setra vei:bva
+Lensmann Hiorths allé:bgo
+Engveien:bna
+Kronveien:bns
+Krokkleiva:bns
+Sørsletta:bva
+Bregneveien:bna
+Lersolveien:bna
+Rognerudveien:bos
+Krokliveien:bbj
+Husebybakken:bun
+Peder Ankers vei:bna
+Skjoldveien:bna
+Grefsenveien:bsa
+Furubråtveien:bns
+Hedmarksgata:bgo
+Kolderups vei:bna
+Martin Borrebekkens vei:bbj
+Jensmessveien:bva
+Bergensgata:bsa
+Melkeveien:bva
+Møllefaret:bva
+Nygårdsveien:bna
+Lindebergåsen:bal
+Holtegata:bfr
+Svaneveien:bos
+Stovnerbakken:bsr
+Stordamveien:bos
+Korsvollbakken:bna
+Friggs vei:bna
+Brannvaktveien:bna
+Ullernveien:bun
+Lettvintveien:bna
+Hallvard Bergves vei:bgr
+Magnus Barfots gate:bfr
+Montebello terrasse:bun
+Solbergliveien:bos
+Belgerudveien:bgr
+Thomas Heftyes gate:bfr
+Korsvoll terrasse:bna
+Grorudveien:bgr
+Havnehagan:bna
+Sørbråtveien:bna
+Ormsundveien:bns
+Skogryggveien:bva
+Ris skolevei:bva
+Seterhøyveien:bns
+Vikingveien:bns
+Langsetveien:bna
+Smiuvegen:bsr
+Sagadammen:bna
+Edvard Munchs vei:bal
+Folke Bernadottes vei:bna
+Erlandstuveien:bns
+Kastellveien:bns
+Christian Benneches vei:bfr
+Skolestien:bva
+Hoffsveien:bun
+Høybråtenveien:bal
+Parkenga:bgr
+Hartmanns vei:bun
+Kjølberggata:bgo
+Sigurd Iversens vei:bun
+Fredriksborgveien:bfr
+Slemdalsvingen:bva
+Olav Aukrusts vei:bva
+Åsbråtstien:bsn
+Vallegata:bsh
+Dyrlandsveien:bna
+Bygdøyveien:bfr
+Huitfeldts gate:bfr
+Idrettsveien:bsr
+Hesteskoen:bna
+Bergensveien:bgr
+Ole Reistads vei:bal
+Dronninghavnveien:bfr
+Kringveien:bsr
+Bernhard Herres vei:bva
+Sondrevegen:bun
+Jordbærveien:bns
+Lønnåsveien:bva
+Harestien:bva
+Jens Bjelkes gate:bga
+Vækerøåsen:bun
+Bygdøy Kapellvei:bfr
+Sophus Aars' vei:bna
