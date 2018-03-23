@@ -119,7 +119,7 @@ start = time.time()
 
 for index, r in virdi_augmented.iterrows():
 
-    comparable_matrix = virdi_augmented.loc[virdi_augmented.unit_type == r.unit_type]
+    comparable_matrix = virdi_augmented.loc[virdi_augmented.size_group == r.size_group]
 
     if r.unit_type == "apartment":
         comparable_matrix = comparable_matrix.loc[comparable_matrix.bydel_code == r.bydel_code]
@@ -144,6 +144,11 @@ for index, r in virdi_augmented.iterrows():
     close_ids_comparable_matrix = close_ids_comparable_matrix[:COMPARABLE_SET_SIZE]
     close_ids = close_ids[:COMPARABLE_SET_SIZE]
 
+    p_comparables = comparable_matrix.loc[close_ids_comparable_matrix].log_price_plus_comdebt
+
+    WP = p_comparables.mean()
+
+    """
     distances = distance_matrix[-1][[close_ids]]
     if len(distances) > 0:
         if distances.max() == 0:
@@ -155,6 +160,8 @@ for index, r in virdi_augmented.iterrows():
     p_times_distance = distances * comparable_matrix.loc[close_ids_comparable_matrix].log_price_plus_comdebt
 
     WP = p_times_distance.sum() / distances.sum()
+    
+    """
 
     WP_list.append(WP)
 
@@ -302,7 +309,7 @@ score = pd.DataFrame()
 
 score = score.assign(predicted_value = (test.prom*np.exp(test_results))).astype(int)
 score = score.assign(true_value = test["Total price"])
-score = score.assign(deviation_absolute = score.true_value - score.predicted_value)
+score = score.assign(deviation = score.true_value - score.predicted_value)
 score = score.assign(deviation_percentage = abs(score.deviation_absolute / score.true_value))
 
 print ""
