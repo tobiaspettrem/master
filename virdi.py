@@ -7,6 +7,7 @@ import statsmodels.api as sm
 import matplotlib.pyplot as plt
 
 SOLD_TO_OFFICIAL_DIFF = 55
+TRAINING_SET_SIZE = 0.9
 
 run_new_init = False
 
@@ -97,29 +98,27 @@ del virdi_augmented["register_date"]
 # ------------------
 
 virdi_augmented = virdi_augmented.sample(frac=1) # shuffle the dataset to do random training and test partition
-virdi_augmented = virdi_augmented[["log_price_plus_comdebt","size_group","sold_month_and_year","bydel_code","unit_type", "prom","Total price","coord_x","coord_y"]]
+# virdi_augmented = virdi_augmented[["log_price_plus_comdebt","size_group","sold_month_and_year","bydel_code","unit_type", "prom","Total price","coord_x","coord_y"]]
 
-columns_to_count = ["log_price_plus_comdebt","size_group","sold_month_and_year","bydel_code","unit_type"]
+columns_to_count = ["size_group","sold_month_and_year","bydel_code","unit_type"]
 
-virdi_augmented = virdi_augmented.loc[virdi_augmented.bydel_code != "SEN"]
+# virdi_augmented = virdi_augmented.loc[virdi_augmented.bydel_code != "SEN"]
 virdi_augmented = virdi_augmented.loc[virdi_augmented.bydel_code != "MAR"]
 
 virdi_augmented = virdi_augmented.loc[virdi_augmented.sold_month_and_year != "Feb2018"]
 virdi_augmented = virdi_augmented.loc[virdi_augmented.sold_month_and_year != "Jan2018"]
 
-"""
 for c in columns_to_count:
     print(c)
     print(virdi_augmented[c].value_counts())
     print("-------------------")
-"""
 
-threshold = int(0.8 * len(virdi_augmented))
+threshold = int(TRAINING_SET_SIZE * len(virdi_augmented))
 training = virdi_augmented[:threshold]
 test = virdi_augmented[threshold:]
 
 y,X = dmatrices('log_price_plus_comdebt ~ C(size_group,Treatment(reference="40 - 49")) + \
-C(sold_month_and_year,Treatment(reference="Apr2017")) + C(bydel_code,Treatment(reference="bfr")) + \
+C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(bydel_code,Treatment(reference="bfr")) + \
 C(unit_type,Treatment(reference="house"))', \
                 data=training, return_type = "dataframe") # excluding build year until videre
 
@@ -145,10 +144,6 @@ virdi_with_resids["resids"] = resids
 
 alva_io.write_to_csv(virdi_with_resids,"C:/Users/tobiasrp/data/virdi_with_resids.csv")
 
-"""
-#plt.scatter(resids.index,resids)
-#plt.show()
-
 #magic
 print(res.summary())
 print("-----------------")
@@ -156,10 +151,15 @@ print("Robust standard error")
 print()
 print(res.HC0_se)
 
+"""
+#plt.scatter(resids.index,resids)
+#plt.show()
+
+
 # exogen_matrix = [c for c in subset.columns if c not in regression_columns]
 
 y_test,X_test = dmatrices('log_price_plus_comdebt ~ C(size_group,Treatment(reference="40 - 49")) + \
-C(sold_month_and_year,Treatment(reference="Apr2017")) + C(bydel_code,Treatment(reference="bfr")) + \
+C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(bydel_code,Treatment(reference="bfr")) + \
 C(unit_type,Treatment(reference="house"))', \
                 data=test, return_type = "dataframe")
 
