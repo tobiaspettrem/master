@@ -7,6 +7,8 @@ district_id_to_code = {1:"bgo",2:"bga",3:"bsa",4:"bsh",5:"bfr",6:"bun",7:"bva",8
 9:"bbj",10:"bgr",11:"bsr",12:"bal",13:"bos",14:"bns",15:"bsn",16:"SEN",17:"MAR"}
 
 def add_bydel(df):
+
+    print "Adding districts."
     districts_list = []
     try:
         street_dict_file = open("street_district_mapping.txt","a+")
@@ -15,6 +17,9 @@ def add_bydel(df):
         street_to_district = dict()
     invalid_streets = []
     start = time.time()
+
+    size = float(len(df))
+    old_progress, new_progress = 0,0
 
     for i in range(len(df)):
         row = df.iloc[i]
@@ -35,10 +40,14 @@ def add_bydel(df):
         else:
             bydel = pd.Series(district_id_to_code[district_number])
 
-
         districts_list.append(bydel)
-        if i % 10000 == 0:
-            print "Processing row " + str(i)
+        new_progress = round(i / size,2)
+        if old_progress != new_progress:
+            if (int(100*new_progress)) % 10 == 0:
+                print str(int(100*new_progress)) + "%",
+            else:
+                print "|",
+        old_progress = new_progress
 
     street_dict_file.close()
 
@@ -48,9 +57,6 @@ def add_bydel(df):
     print("Time elapsed: " + str(time.time() - start))
     for s in set(invalid_streets):
         print s
-
-    print "Printing bydeler"
-    print "----------------"
 
     df = df.reset_index(drop=True) # drop=True removes old index instead of inserting it as a column
     df = df.assign(bydel_code = districts)

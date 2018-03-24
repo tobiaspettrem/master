@@ -1,4 +1,6 @@
+from multiprocessing import Pool
 import time
+import scrap_finn
 from scipy.spatial.distance import pdist, squareform
 import alva_io, address
 import pandas as pd
@@ -12,14 +14,9 @@ SOLD_TO_OFFICIAL_DIFF = 55
 TRAINING_SET_SIZE = 0.9
 COMPARABLE_SET_SIZE = 10
 
-run_new_init = False
-
 if raw_input("Enter to run without new initialization") != "":
-    run_new_init = True
 
-if run_new_init:
-
-    virdi_df = alva_io.get_dataframe_from_excel("C:/Users/tobiasrp/data/20180220 Transactions Virdi v2.xlsx")
+    virdi_df = alva_io.get_dataframe_from_excel("C:/Users/Tobias/data/20180220 Transactions Virdi v2.xlsx")
 
     address_df = address.get_address()
 
@@ -28,10 +25,16 @@ if run_new_init:
     print("Dropping duplicates")
     virdi_augmented = virdi_augmented.drop_duplicates(subset="ad_code", keep=False)
 
-    pd.DataFrame.to_csv(virdi_augmented, "C:/Users/tobiasrp/data/virdi_augmented.csv")
+    print("Dropping NaN in ad_code")
+    print "print1", virdi_augmented.shape
+    virdi_augmented = virdi_augmented.dropna(subset = ["ad_code"])
+    print "print2", virdi_augmented.shape
+
+    pd.DataFrame.to_csv(virdi_augmented, "C:/Users/Tobias/data/virdi_augmented.csv")
 
 else:
-    virdi_augmented = pd.read_csv("C:/Users/tobiasrp/data/virdi_augmented.csv",index_col=0)
+    virdi_augmented = pd.read_csv("C:/Users/Tobias/data/virdi_augmented_with_title.csv",index_col=0)
+
 
 # virdi = virdi.loc[virdi["kr/m2"] > ] # cutting on sqm price
 
@@ -101,13 +104,25 @@ virdi_augmented = virdi_augmented.loc[virdi_augmented.sold_month_and_year != "Fe
 virdi_augmented = virdi_augmented.loc[virdi_augmented.sold_month_and_year != "Jan_2018"]
 virdi_augmented = virdi_augmented.loc[virdi_augmented.unit_type != "other"]
 
+virdi_augmented = virdi_augmented.assign(needs_refurbishment = 0)
+virdi_augmented = virdi_augmented.assign(title_lower = virdi_augmented.title.str.lower())
+print virdi_augmented.needs_refurbishment.value_counts()
+virdi_augmented.needs_refurbishment = virdi_augmented.title_lower.str.contains("oppussingsobjekt")
+print virdi_augmented.needs_refurbishment.value_counts()
+virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | virdi_augmented.title_lower.str.contains("oppgraderingsbehov")
+print virdi_augmented.needs_refurbishment.value_counts()
+virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | virdi_augmented.title_lower.str.contains("oppussingsbehov")
+print virdi_augmented.needs_refurbishment.value_counts()
+
+virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment.astype(int)
+
 """
 for c in columns_to_count:
     print(c)
     print(virdi_augmented[c].value_counts())
     print("-------------------")
 """
-
+"""
 count = 0.0
 size = float(len(virdi_augmented.index))
 old_progress, new_progress = 0,0
@@ -115,7 +130,7 @@ WP_list = []
 
 print "Mapping distances"
 print "0%",
-start = time.time()
+for_loop_start = time.time()
 
 for index, r in virdi_augmented.iterrows():
 
@@ -148,7 +163,8 @@ for index, r in virdi_augmented.iterrows():
 
     WP = p_comparables.mean()
 
-    """
+    #-------
+
     distances = distance_matrix[-1][[close_ids]]
     if len(distances) > 0:
         if distances.max() == 0:
@@ -160,8 +176,8 @@ for index, r in virdi_augmented.iterrows():
     p_times_distance = distances * comparable_matrix.loc[close_ids_comparable_matrix].log_price_plus_comdebt
 
     WP = p_times_distance.sum() / distances.sum()
-    
-    """
+
+    # -------
 
     WP_list.append(WP)
 
@@ -177,7 +193,7 @@ for index, r in virdi_augmented.iterrows():
     count += 1
 
 print ""
-print "Done. " + str(round(time.time() - start)) + " seconds elapsed."
+print "Done. " + str(round(time.time() - for_loop_start )) + " seconds elapsed."
 
 WP_column = pd.Series(WP_list)
 
@@ -186,7 +202,7 @@ virdi_augmented = virdi_augmented.assign(WP = WP_column)
 virdi_augmented = virdi_augmented.dropna(subset = ["WP"])
 
 alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_augmented_with_WP.csv")
-
+"""
 # ------------
 # begin splitting and regressing
 # ------------
@@ -197,18 +213,18 @@ test = virdi_augmented[threshold:]
 
 y,X = dmatrices('log_price_plus_comdebt ~ C(size_group,Treatment(reference="40 - 49")) + \
 C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(bydel_code,Treatment(reference="bfr")) + \
-C(unit_type,Treatment(reference="house")) + WP', \
+C(unit_type,Treatment(reference="house")) + needs_refurbishment', \
                 data=training, return_type = "dataframe") # excluding build year until videre
 
 
 #describe model
-
+"""
 print("y")
 print(y.head(20))
 print("x")
-print(X.WP.head(20))
+print(X.head(20))
 print("---")
-
+"""
 mod = sm.OLS(y,X,missing = 'drop')
 
 #fit model
@@ -219,7 +235,7 @@ resids = res.resid
 virdi_with_resids = training
 virdi_with_resids["resids"] = resids
 
-alva_io.write_to_csv(virdi_with_resids,"C:/Users/tobiasrp/data/virdi_with_resids.csv")
+alva_io.write_to_csv(virdi_with_resids,"C:/Users/Tobias/data/virdi_with_resids.csv")
 """
 """
 #magic
@@ -236,7 +252,7 @@ print(res.HC0_se)
 
 y_test,X_test = dmatrices('log_price_plus_comdebt ~ C(size_group,Treatment(reference="40 - 49")) + \
 C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(bydel_code,Treatment(reference="bfr")) + \
-C(unit_type,Treatment(reference="house")) + WP', \
+C(unit_type,Treatment(reference="house")) + needs_refurbishment', \
                 data=test, return_type = "dataframe")
 
 
@@ -310,7 +326,7 @@ score = pd.DataFrame()
 score = score.assign(predicted_value = (test.prom*np.exp(test_results))).astype(int)
 score = score.assign(true_value = test["Total price"])
 score = score.assign(deviation = score.true_value - score.predicted_value)
-score = score.assign(deviation_percentage = abs(score.deviation_absolute / score.true_value))
+score = score.assign(deviation_percentage = abs(score.deviation / score.true_value))
 
 print ""
 print "Test Results"
