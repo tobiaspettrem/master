@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import time
 import random
 import alva_io
 import pandas as pd
@@ -12,7 +13,7 @@ warnings.filterwarnings("ignore")
 REFURBISHMENT_WORDS = ["oppussingsbehov", "oppussingsobjekt", "oppgraderingsbehov", "oppussing må påregnes"]
 
 
-def get_title(ad_code):
+def get_soup(ad_code):
 
     if random.random() > 0.99:
         print "100. Ad code: " + str(ad_code)
@@ -20,13 +21,24 @@ def get_title(ad_code):
     url = "https://www.finn.no/" + str(ad_code)
 
     headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 6.0; WOW64; rv:24.0) Gecko/20100101 Firefox/24.0' }
-    r = requests.get(url, headers = headers)
+    while True:
+        try:
+            r = requests.get(url, headers = headers)
+            break
+        except requests.ConnectionError:
+            print "Connection denied"
+            print "On URL " + str(url)
+            time.sleep(1)
 
     data = r.text
 
     soup = BeautifulSoup(data,"lxml")
 
-    text = str(soup.find("title"))
+    return str(soup)
+
+def get_title(soup):
+
+    text = soup.find("title")
     text = text.strip("<title>")
     text = text.strip("</title>")
 
@@ -34,21 +46,23 @@ def get_title(ad_code):
 
 def needs_refurbishment(ad_code):
 
-    string = get_title(ad_code)
+    string = get_title(get_soup(ad_code))
     for word in REFURBISHMENT_WORDS:
         if word in string.lower():
             return True
     return False
 
+'''
 def get_title_series(ad_code_list):
     title_list = []
     for ad_code in ad_code_list:
-        title_list.append(get_title(ad_code))
+        title_list.append(get_title(get_soup(ad_code)))
 
     title_series = pd.Series(title_list)
     return title_series
+'''
 
-virdi_augmented = pd.read_csv("C:/Users/Tobias/data/virdi_augmented.csv",index_col=0)
+virdi_augmented = pd.read_csv("C:/Users/tobiasrp/data/virdi_augmented.csv",index_col=0)
 
 AD_CODE_SIZE = 50
 POOL_SIZE = 10
@@ -67,4 +81,4 @@ if __name__ == "__main__":
 if titles_created:
     title_and_ad_codes = pd.DataFrame({'ad_code':ad_codes, 'title': titles})
     virdi_augmented = pd.merge(virdi_augmented, title_and_ad_codes, how="left", on="ad_code")
-    alva_io.write_to_csv(virdi_augmented, "C:/Users/Tobias/data/virdi_augmented_with_title.csv")
+    alva_io.write_to_csv(virdi_augmented, "C:/Users/tobiasrp/data/virdi_augmented_with_title.csv")

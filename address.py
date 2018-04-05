@@ -13,13 +13,13 @@ def get_address():
              'eiendomadressegatenavn': str,
              'eiendomadressehusnr': np.dtype(float)} # use float instead of int when NaN values are present. Pandas unable to handle NaN as int
 
-    address = alva_io.get_dataframe_from_csv("C:/Users/Tobias/data/20180223 Address table v2.csv", ";", types, types.keys()) # load dataframe from file
+    address = alva_io.get_dataframe_from_csv("C:/Users/tobiasrp/data/20180223 Address table v2.csv", ";", types, types.keys()) # load dataframe from file
 
     address = address.loc[address.poststed == "OSLO"] # discard data on all houses outside Oslo
 
     address = add_district.add_bydel(address) # retrieve district info from Oslo homepage
 
-    alva_io.write_to_csv(address,"C:/Users/Tobias/data/address_with_districts.csv")
+    alva_io.write_to_csv(address,"C:/Users/tobiasrp/data/address_with_districts.csv")
 
     print address.shape
     address = address.dropna(subset = ["bydel_code"])

@@ -1,7 +1,4 @@
-from multiprocessing import Pool
 import time
-import scrap_finn
-from scipy.spatial.distance import pdist, squareform
 import alva_io, address
 import pandas as pd
 import numpy as np
@@ -16,7 +13,7 @@ COMPARABLE_SET_SIZE = 10
 
 if raw_input("Enter to run without new initialization") != "":
 
-    virdi_df = alva_io.get_dataframe_from_excel("C:/Users/Tobias/data/20180220 Transactions Virdi v2.xlsx")
+    virdi_df = alva_io.get_dataframe_from_excel("C:/Users/tobiasrp/data/20180220 Transactions Virdi v2.xlsx")
 
     address_df = address.get_address()
 
@@ -30,10 +27,10 @@ if raw_input("Enter to run without new initialization") != "":
     virdi_augmented = virdi_augmented.dropna(subset = ["ad_code"])
     print "print2", virdi_augmented.shape
 
-    pd.DataFrame.to_csv(virdi_augmented, "C:/Users/Tobias/data/virdi_augmented.csv")
+    pd.DataFrame.to_csv(virdi_augmented, "C:/Users/tobiasrp/data/virdi_augmented.csv")
 
 else:
-    virdi_augmented = pd.read_csv("C:/Users/Tobias/data/virdi_augmented_with_title.csv",index_col=0)
+    virdi_augmented = pd.read_csv("C:/Users/tobiasrp/data/virdi_augmented_with_title.csv",index_col=0)
 
 
 # virdi = virdi.loc[virdi["kr/m2"] > ] # cutting on sqm price
@@ -103,6 +100,8 @@ virdi_augmented = virdi_augmented.loc[virdi_augmented.bydel_code != "MAR"]
 virdi_augmented = virdi_augmented.loc[virdi_augmented.sold_month_and_year != "Feb_2018"]
 virdi_augmented = virdi_augmented.loc[virdi_augmented.sold_month_and_year != "Jan_2018"]
 virdi_augmented = virdi_augmented.loc[virdi_augmented.unit_type != "other"]
+
+print virdi_augmented.unit_type.value_counts()
 
 virdi_augmented = virdi_augmented.assign(needs_refurbishment = 0)
 virdi_augmented = virdi_augmented.assign(title_lower = virdi_augmented.title.str.lower())
@@ -235,7 +234,7 @@ resids = res.resid
 virdi_with_resids = training
 virdi_with_resids["resids"] = resids
 
-alva_io.write_to_csv(virdi_with_resids,"C:/Users/Tobias/data/virdi_with_resids.csv")
+alva_io.write_to_csv(virdi_with_resids,"C:/Users/tobiasrp/data/virdi_with_resids.csv")
 """
 """
 #magic
