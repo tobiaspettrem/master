@@ -1,7 +1,4 @@
-import alva_io, numpy as np, pandas as pd
+import scrap_finn
 
-test = pd.read_csv("C:/Users/tobiasrp/data/address_with_districts.csv")
-
-print test.shape
-
-print test.isnull().sum()
+print scrap_finn.get_title(85725990)
+print scrap_finn.get_title(84246471)
