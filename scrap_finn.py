@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import numpy as np
 import time
 import random
 import alva_io
@@ -11,7 +12,6 @@ import warnings
 warnings.filterwarnings("ignore")
 
 REFURBISHMENT_WORDS = ["oppussingsbehov", "oppussingsobjekt", "oppgraderingsbehov", "oppussing må påregnes"]
-
 
 def get_soup(ad_code):
 
@@ -26,23 +26,37 @@ def get_soup(ad_code):
             r = requests.get(url, headers = headers)
             break
         except requests.ConnectionError:
-            print "Connection denied"
-            print "On URL " + str(url)
+            print "Connection denied on URL " + str(url)
             time.sleep(1)
 
     data = r.text
 
     soup = BeautifulSoup(data,"lxml")
 
-    return str(soup)
+    return soup
 
 def get_title(soup):
 
     text = soup.find("title")
+
+    text = str(text)
+
     text = text.strip("<title>")
     text = text.strip("</title>")
 
     return text
+
+def get_build_year(soup):
+
+    soup = str(soup)
+
+    build_year_index = soup.find("Byggeår")
+
+    if build_year_index != -1:
+        build_year_index += 44
+        return int(soup[build_year_index:build_year_index+4])
+
+    return np.nan
 
 def needs_refurbishment(ad_code):
 
@@ -52,33 +66,26 @@ def needs_refurbishment(ad_code):
             return True
     return False
 
-'''
-def get_title_series(ad_code_list):
-    title_list = []
-    for ad_code in ad_code_list:
-        title_list.append(get_title(get_soup(ad_code)))
-
-    title_series = pd.Series(title_list)
-    return title_series
-'''
-
-virdi_augmented = pd.read_csv("C:/Users/tobiasrp/data/virdi_augmented.csv",index_col=0)
-
-AD_CODE_SIZE = 50
-POOL_SIZE = 10
-
-ad_codes = [int(i) for i in virdi_augmented.ad_code.tolist()]
-# ad_codes = ad_codes[:AD_CODE_SIZE]
-titles_created = False
-
+soups_created = False
 
 if __name__ == "__main__":
+
+    POOL_SIZE = 10
+
+    virdi_augmented = pd.read_csv("C:/Users/tobiasrp/data/virdi_augmented.csv", index_col=0)
+    ad_codes = [int(i) for i in virdi_augmented.ad_code.tolist()]
+
     print "MAIN OK"
     p = Pool(POOL_SIZE)
-    titles = p.map(get_title, ad_codes)
-    titles_created = True
+    soups = p.map(get_soup, ad_codes)
+    soups_created = True
 
-if titles_created:
-    title_and_ad_codes = pd.DataFrame({'ad_code':ad_codes, 'title': titles})
+if soups_created:
+    build_years = []
+    titles = []
+    for s in soups:
+        titles.append(get_title(s))
+        build_years.append(get_build_year(s))
+    title_and_ad_codes = pd.DataFrame({'ad_code':ad_codes, 'title': titles, 'build_year': build_years})
     virdi_augmented = pd.merge(virdi_augmented, title_and_ad_codes, how="left", on="ad_code")
-    alva_io.write_to_csv(virdi_augmented, "C:/Users/tobiasrp/data/virdi_augmented_with_title.csv")
+    alva_io.write_to_csv(virdi_augmented, "C:/Users/tobiasrp/data/virdi_augmented_with_title_testing.csv")

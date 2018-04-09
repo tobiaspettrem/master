@@ -99,9 +99,9 @@ virdi_augmented = virdi_augmented.loc[virdi_augmented.bydel_code != "MAR"]
 
 virdi_augmented = virdi_augmented.loc[virdi_augmented.sold_month_and_year != "Feb_2018"]
 virdi_augmented = virdi_augmented.loc[virdi_augmented.sold_month_and_year != "Jan_2018"]
-virdi_augmented = virdi_augmented.loc[virdi_augmented.unit_type != "other"]
 
-print virdi_augmented.unit_type.value_counts()
+virdi_augmented.loc[virdi_augmented.unit_type == "other", "unit_type"] = "apartment"
+#virdi_augmented = virdi_augmented.loc[virdi_augmented.unit_type != "other"]
 
 virdi_augmented = virdi_augmented.assign(needs_refurbishment = 0)
 virdi_augmented = virdi_augmented.assign(title_lower = virdi_augmented.title.str.lower())
@@ -114,6 +114,11 @@ virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | vird
 print virdi_augmented.needs_refurbishment.value_counts()
 
 virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment.astype(int)
+
+virdi_augmented = virdi_augmented.assign(is_borettslag = virdi_augmented.borettslagetsnavn != "")
+virdi_augmented.needs_refurbishment = virdi_augmented.is_borettslag.astype(int)
+
+print virdi_augmented.is_borettslag.value_counts()
 
 """
 for c in columns_to_count:

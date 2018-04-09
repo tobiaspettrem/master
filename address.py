@@ -9,6 +9,7 @@ def get_address():
              'eiendomadressebokstav': str,
              'postnr': np.dtype(int),
              'poststed': str,
+             'borettslagetsnavn': str,
              'unit_type': str,
              'eiendomadressegatenavn': str,
              'eiendomadressehusnr': np.dtype(float)} # use float instead of int when NaN values are present. Pandas unable to handle NaN as int
