@@ -124,6 +124,6 @@ if soups_created:
     """
     title_and_ad_codes = pd.DataFrame({'ad_code':ad_codes, 'title': titles, 'build_year': build_years})
     virdi_augmented = pd.merge(virdi_augmented, title_and_ad_codes, how="left", on="ad_code")
-    alva_io.write_to_csv(virdi_augmented, "C:/Users/tobiasrp/data/virdi_augmented_with_title_testing.csv")
+    alva_io.write_to_csv(virdi_augmented, "C:/Users/tobiasrp/data/virdi_augmented_with_title.csv")
 
     print "Terminated in " + get_minutes_and_seconds(time.time() - start)

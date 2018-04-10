@@ -422,8 +422,14 @@ test = test.reset_index()
 
 test = test.assign(residual_adjusted_prediction = test.regression_prediction + resid_median_column)
 
+### ADD HERE!
+### FILLING OUT NANs IN THE RESIDUAL ADJUSTED PREDICTION WITH REGRESSION PREDICTION
+### ALSO, CALCULATE ERROR FOR REGRESSION AND RESIDUAL ADJUSTED ESTIMATES
+
 alva_io.write_to_csv(test,"C:/Users/tobiasrp/data/residual_adjusted_estimates.csv")
+
 """
+# END COMPARABLE MODEL
 
 score = pd.DataFrame()
 
