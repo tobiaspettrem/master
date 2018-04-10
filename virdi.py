@@ -35,204 +35,268 @@ if raw_input("Enter to run without new initialization") != "":
 else:
     virdi_augmented = pd.read_csv("C:/Users/tobiasrp/data/virdi_augmented_with_title.csv",index_col=0)
 
+if raw_input("Enter to run without mapping previous sales") != "":
+    # virdi = virdi.loc[virdi["kr/m2"] > ] # cutting on sqm price
 
-# virdi = virdi.loc[virdi["kr/m2"] > ] # cutting on sqm price
+    virdi_augmented = virdi_augmented.assign(log_price_plus_comdebt = np.log(virdi_augmented["kr/m2"]))
 
-virdi_augmented = virdi_augmented.assign(log_price_plus_comdebt = np.log(virdi_augmented["kr/m2"]))
+    # ----- CREATE NEW COLUMN size_group ------ #
 
-# ----- CREATE NEW COLUMN size_group ------ #
+    size_group_size = 10 #change this only to change group sizes
+    size_labels = ["10 -- 29"]
+    size_labels += [ "{0} -- {1}".format(i, i + size_group_size - 1) for i in range(30, 150, size_group_size) ]
+    size_labels.append("150 -- 179")
+    size_labels.append("180 -- ")
 
-size_group_size = 10 #change this only to change group sizes
-size_labels = ["10 -- 29"]
-size_labels += [ "{0} -- {1}".format(i, i + size_group_size - 1) for i in range(30, 150, size_group_size) ]
-size_labels.append("150 -- 179")
-size_labels.append("180 -- ")
+    size_thresholds = [10]
+    size_thresholds += [i for i in range(30,151,size_group_size)] + [180] + [500]
 
-size_thresholds = [10]
-size_thresholds += [i for i in range(30,151,size_group_size)] + [180] + [500]
+    virdi_augmented['size_group'] = pd.cut(virdi_augmented.prom, size_thresholds, right=False, labels=size_labels)
 
-virdi_augmented['size_group'] = pd.cut(virdi_augmented.prom, size_thresholds, right=False, labels=size_labels)
+    #----------- CREATE NEW COLUMN real_sold_date -----------#
 
-#----------- CREATE NEW COLUMN real_sold_date -----------#
+    #makes sold_date on datetime format
+    virdi_augmented = virdi_augmented.assign(sold_date = pd.to_datetime(virdi_augmented["sold_date"],format="%Y-%m-%d"))
 
-#makes sold_date on datetime format
-virdi_augmented = virdi_augmented.assign(sold_date = pd.to_datetime(virdi_augmented["sold_date"],format="%Y-%m-%d"))
+    #makes off._date on datetime format
+    virdi_augmented = virdi_augmented.assign(official_date = pd.to_datetime(virdi_augmented["official_date"],format="%Y-%m-%d"))
 
-#makes off._date on datetime format
-virdi_augmented = virdi_augmented.assign(official_date = pd.to_datetime(virdi_augmented["official_date"],format="%Y-%m-%d"))
-
-#sets new col real_sold_date equal to minimum of sold_date and official_date (with offset of x days)
-virdi_augmented = virdi_augmented.assign(real_sold_date = np.where((virdi_augmented["sold_date"] > virdi_augmented["official_date"]), \
-                                                                   virdi_augmented["official_date"] - pd.Timedelta(days = SOLD_TO_OFFICIAL_DIFF), \
-                                                                   virdi_augmented["sold_date"]))
-
-
-#sets real_sold_date equal to official_date if sold_date is NaT (not a problem in the opposite case for some reason)
-virdi_augmented = virdi_augmented.assign(real_sold_date = np.where((virdi_augmented["real_sold_date"].isnull()), \
-                                                                   virdi_augmented["official_date"]- pd.Timedelta(days = SOLD_TO_OFFICIAL_DIFF), \
-                                                                   virdi_augmented["real_sold_date"]))
-
-#----- CREATE NEW COLUMN sold_month ------#
-
-#add sold_month column for discovery of seasonal effects
-
-virdi_augmented = virdi_augmented.assign(sold_month = virdi_augmented.real_sold_date.map(lambda x: x.month))
-virdi_augmented = virdi_augmented.assign(sold_year = virdi_augmented.real_sold_date.map(lambda x: x.year))
-virdi_augmented = virdi_augmented.assign(sold_month = virdi_augmented.sold_month.apply(lambda x: calendar.month_abbr[x])) #text instead of int
-virdi_augmented = virdi_augmented.assign(sold_month_and_year = virdi_augmented.sold_month + "_" + virdi_augmented.sold_year.map(str))
-
-#delete sold_date and official_date now that real_sold_date covers both
-del virdi_augmented["sold_date"]
-del virdi_augmented["official_date"]
-del virdi_augmented["register_date"]
-
-# ------------------
-#   DO REGRESSION
-# ------------------
-
-virdi_augmented = virdi_augmented.sample(frac=1) # shuffle the dataset to do random training and test partition
-# virdi_augmented = virdi_augmented[["log_price_plus_comdebt","size_group","sold_month_and_year","bydel_code","unit_type", "prom","Total price","coord_x","coord_y"]]
-
-columns_to_count = ["size_group","sold_month_and_year","bydel_code","unit_type"]
-
-# virdi_augmented = virdi_augmented.loc[virdi_augmented.bydel_code != "SEN"]
-virdi_augmented.loc[virdi_augmented.bydel_code == 'SEN', 'bydel_code'] = "bsh" # reassign SENTRUM to St. Hanshaugen
-
-virdi_augmented = virdi_augmented.loc[virdi_augmented.bydel_code != "MAR"]
-
-virdi_augmented = virdi_augmented.loc[virdi_augmented.sold_month_and_year != "Feb_2018"]
-virdi_augmented = virdi_augmented.loc[virdi_augmented.sold_month_and_year != "Jan_2018"]
-
-virdi_augmented.loc[virdi_augmented.unit_type == "other", "unit_type"] = "apartment"
-#virdi_augmented = virdi_augmented.loc[virdi_augmented.unit_type != "other"]
-
-virdi_augmented = virdi_augmented.assign(title_lower = virdi_augmented.title.str.lower())
-
-virdi_augmented = virdi_augmented.assign(needs_refurbishment = 0)
-virdi_augmented.needs_refurbishment = virdi_augmented.title_lower.str.contains("oppussingsobjekt")
-virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | virdi_augmented.title_lower.str.contains("oppgraderingsbehov")
-virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | virdi_augmented.title_lower.str.contains("oppussingsbehov")
-virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment.astype(int)
-
-#----------- CREATE NEW COLUMN year_group -----------#
-
-year_labels = ['1820 - 1989', '1990 - 2004', '2005 - 2020']
-
-year_thresholds = [1820,1990,2005,2020]
-
-virdi_augmented['year_group'] = pd.cut(virdi_augmented.build_year, year_thresholds, right=False, labels=year_labels)
-virdi_augmented = virdi_augmented.loc[~ pd.isnull(virdi_augmented.year_group)]
-
-# før 1990
-# 1990-2005
-# 2005-2020
+    #sets new col real_sold_date equal to minimum of sold_date and official_date (with offset of x days)
+    virdi_augmented = virdi_augmented.assign(real_sold_date = np.where((virdi_augmented["sold_date"] > virdi_augmented["official_date"]), \
+                                                                       virdi_augmented["official_date"] - pd.Timedelta(days = SOLD_TO_OFFICIAL_DIFF), \
+                                                                       virdi_augmented["sold_date"]))
 
 
-virdi_augmented = virdi_augmented.assign(is_borettslag = ~pd.isnull(virdi_augmented.borettslagetsnavn))
-virdi_augmented.is_borettslag = virdi_augmented.is_borettslag.astype(int)
+    #sets real_sold_date equal to official_date if sold_date is NaT (not a problem in the opposite case for some reason)
+    virdi_augmented = virdi_augmented.assign(real_sold_date = np.where((virdi_augmented["real_sold_date"].isnull()), \
+                                                                       virdi_augmented["official_date"]- pd.Timedelta(days = SOLD_TO_OFFICIAL_DIFF), \
+                                                                       virdi_augmented["real_sold_date"]))
 
-virdi_augmented = virdi_augmented.assign(has_garden = virdi_augmented.title_lower.str.contains("hage"))
-virdi_augmented.has_garden = virdi_augmented.has_garden.astype(int)
-virdi_augmented = virdi_augmented.assign(has_garage = virdi_augmented.title_lower.str.contains("garasje"))
-virdi_augmented.has_garage = virdi_augmented.has_garage.astype(int)
-virdi_augmented = virdi_augmented.assign(is_penthouse = virdi_augmented.title_lower.str.contains("toppleilighet"))
-virdi_augmented.is_penthouse = virdi_augmented.is_penthouse.astype(int)
-"""
-virdi_augmented = virdi_augmented.assign(has_balcony = virdi_augmented.title_lower.str.contains("balkong"))
-virdi_augmented.has_balcony = virdi_augmented.has_balcony.astype(int)
-"""
-virdi_augmented = virdi_augmented.assign(has_fireplace = virdi_augmented.title_lower.str.contains("peis"))
-virdi_augmented.has_fireplace = virdi_augmented.has_fireplace.astype(int)
-virdi_augmented = virdi_augmented.assign(has_terrace = virdi_augmented.title_lower.str.contains("terrasse"))
-virdi_augmented.has_terrace = virdi_augmented.has_terrace.astype(int)
+    #----- CREATE NEW COLUMN sold_month ------#
 
-"""
-for c in columns_to_count:
-    print(c)
-    print(virdi_augmented[c].value_counts())
-    print("-------------------")
-"""
-"""
-count = 0.0
-size = float(len(virdi_augmented.index))
-old_progress, new_progress = 0,0
-WP_list = []
+    #add sold_month column for discovery of seasonal effects
 
-print "Mapping distances"
-print "0%",
-for_loop_start = time.time()
+    virdi_augmented = virdi_augmented.assign(sold_month = virdi_augmented.real_sold_date.map(lambda x: x.month))
+    virdi_augmented = virdi_augmented.assign(sold_year = virdi_augmented.real_sold_date.map(lambda x: x.year))
+    virdi_augmented = virdi_augmented.assign(sold_month = virdi_augmented.sold_month.apply(lambda x: calendar.month_abbr[x])) #text instead of int
+    virdi_augmented = virdi_augmented.assign(sold_month_and_year = virdi_augmented.sold_month + "_" + virdi_augmented.sold_year.map(str))
 
-for index, r in virdi_augmented.iterrows():
+    #delete sold_date and official_date now that real_sold_date covers both
+    del virdi_augmented["sold_date"]
+    del virdi_augmented["official_date"]
+    del virdi_augmented["register_date"]
 
-    comparable_matrix = virdi_augmented.loc[virdi_augmented.size_group == r.size_group]
+    # ------------------
+    #   DO REGRESSION
+    # ------------------
 
-    if r.unit_type == "apartment":
-        comparable_matrix = comparable_matrix.loc[comparable_matrix.bydel_code == r.bydel_code]
+    virdi_augmented = virdi_augmented.sample(frac=1) # shuffle the dataset to do random training and test partition
+    # virdi_augmented = virdi_augmented[["log_price_plus_comdebt","size_group","sold_month_and_year","bydel_code","unit_type", "prom","Total price","coord_x","coord_y"]]
 
-    comparable_matrix = comparable_matrix.loc[comparable_matrix.real_sold_date < r.real_sold_date] # comparable sale must have occured earlier in time
-    comparable_matrix = comparable_matrix.loc[comparable_matrix.real_sold_date + pd.Timedelta(days=90) > r.real_sold_date] # comparable sale must have occured during the last 90 days
+    columns_to_count = ["size_group","sold_month_and_year","bydel_code","unit_type"]
 
-    comparable_matrix = comparable_matrix.append(r)
+    # virdi_augmented = virdi_augmented.loc[virdi_augmented.bydel_code != "SEN"]
+    virdi_augmented.loc[virdi_augmented.bydel_code == 'SEN', 'bydel_code'] = "bsh" # reassign SENTRUM to St. Hanshaugen
 
-    distance_matrix = squareform(pdist(comparable_matrix[["coord_x", "coord_y"]]))
+    virdi_augmented = virdi_augmented.loc[virdi_augmented.bydel_code != "MAR"]
 
-    max_distance = 0.000025 # about 1.5 meters
-    close_ids = []
+    virdi_augmented = virdi_augmented.loc[virdi_augmented.sold_month_and_year != "Feb_2018"]
+    virdi_augmented = virdi_augmented.loc[virdi_augmented.sold_month_and_year != "Jan_2018"]
 
-    while len(close_ids) < COMPARABLE_SET_SIZE + 1 and max_distance <= 0.0025: # about 150 meters
-        close_points = (distance_matrix[-1] < max_distance)
-        close_points[-1] = False  # exclude itself - if present, always the last element
-        close_ids_comparable_matrix = [comparable_matrix.iloc[i].name for i, close in enumerate(close_points) if close]
-        close_ids = [i for i, close in enumerate(close_points) if close]
-        max_distance *= 10
+    virdi_augmented.loc[virdi_augmented.unit_type == "other", "unit_type"] = "apartment"
+    #virdi_augmented = virdi_augmented.loc[virdi_augmented.unit_type != "other"]
 
-    close_ids_comparable_matrix = close_ids_comparable_matrix[:COMPARABLE_SET_SIZE]
-    close_ids = close_ids[:COMPARABLE_SET_SIZE]
+    virdi_augmented = virdi_augmented.assign(title_lower = virdi_augmented.title.str.lower())
 
-    p_comparables = comparable_matrix.loc[close_ids_comparable_matrix].log_price_plus_comdebt
+    virdi_augmented = virdi_augmented.assign(needs_refurbishment = 0)
+    virdi_augmented.needs_refurbishment = virdi_augmented.title_lower.str.contains("oppussingsobjekt")
+    virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | virdi_augmented.title_lower.str.contains("oppgraderingsbehov")
+    virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | virdi_augmented.title_lower.str.contains("oppussingsbehov")
+    virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment.astype(int)
 
-    WP = p_comparables.mean()
+    #----------- CREATE NEW COLUMN year_group -----------#
 
-    #-------
+    year_labels = ['1820 - 1989', '1990 - 2004', '2005 - 2020']
 
-    distances = distance_matrix[-1][[close_ids]]
-    if len(distances) > 0:
-        if distances.max() == 0:
-            distances[distances == 0] = 0.000025 # value is irrelevant
+    year_thresholds = [1820,1990,2005,2020]
+
+    virdi_augmented['year_group'] = pd.cut(virdi_augmented.build_year, year_thresholds, right=False, labels=year_labels)
+    virdi_augmented = virdi_augmented.loc[~ pd.isnull(virdi_augmented.year_group)]
+
+    # før 1990
+    # 1990-2005
+    # 2005-2020
+
+
+    virdi_augmented = virdi_augmented.assign(is_borettslag = ~pd.isnull(virdi_augmented.borettslagetsnavn))
+    virdi_augmented.is_borettslag = virdi_augmented.is_borettslag.astype(int)
+
+    virdi_augmented = virdi_augmented.assign(has_garden = virdi_augmented.title_lower.str.contains("hage"))
+    virdi_augmented.has_garden = virdi_augmented.has_garden.astype(int)
+    virdi_augmented = virdi_augmented.assign(has_garage = virdi_augmented.title_lower.str.contains("garasje"))
+    virdi_augmented.has_garage = virdi_augmented.has_garage.astype(int)
+    virdi_augmented = virdi_augmented.assign(is_penthouse = virdi_augmented.title_lower.str.contains("toppleilighet"))
+    virdi_augmented.is_penthouse = virdi_augmented.is_penthouse.astype(int)
+    """
+    virdi_augmented = virdi_augmented.assign(has_balcony = virdi_augmented.title_lower.str.contains("balkong"))
+    virdi_augmented.has_balcony = virdi_augmented.has_balcony.astype(int)
+    """
+    virdi_augmented = virdi_augmented.assign(has_fireplace = virdi_augmented.title_lower.str.contains("peis"))
+    virdi_augmented.has_fireplace = virdi_augmented.has_fireplace.astype(int)
+    virdi_augmented = virdi_augmented.assign(has_terrace = virdi_augmented.title_lower.str.contains("terrasse"))
+    virdi_augmented.has_terrace = virdi_augmented.has_terrace.astype(int)
+
+    """
+    for c in columns_to_count:
+        print(c)
+        print(virdi_augmented[c].value_counts())
+        print("-------------------")
+    """
+    """
+    count = 0.0
+    size = float(len(virdi_augmented.index))
+    old_progress, new_progress = 0,0
+    WP_list = []
+    
+    print "Mapping distances"
+    print "0%",
+    for_loop_start = time.time()
+    
+    for index, r in virdi_augmented.iterrows():
+    
+        comparable_matrix = virdi_augmented.loc[virdi_augmented.size_group == r.size_group]
+    
+        if r.unit_type == "apartment":
+            comparable_matrix = comparable_matrix.loc[comparable_matrix.bydel_code == r.bydel_code]
+    
+        comparable_matrix = comparable_matrix.loc[comparable_matrix.real_sold_date < r.real_sold_date] # comparable sale must have occured earlier in time
+        comparable_matrix = comparable_matrix.loc[comparable_matrix.real_sold_date + pd.Timedelta(days=90) > r.real_sold_date] # comparable sale must have occured during the last 90 days
+    
+        comparable_matrix = comparable_matrix.append(r)
+    
+        distance_matrix = squareform(pdist(comparable_matrix[["coord_x", "coord_y"]]))
+    
+        max_distance = 0.000025 # about 1.5 meters
+        close_ids = []
+    
+        while len(close_ids) < COMPARABLE_SET_SIZE + 1 and max_distance <= 0.0025: # about 150 meters
+            close_points = (distance_matrix[-1] < max_distance)
+            close_points[-1] = False  # exclude itself - if present, always the last element
+            close_ids_comparable_matrix = [comparable_matrix.iloc[i].name for i, close in enumerate(close_points) if close]
+            close_ids = [i for i, close in enumerate(close_points) if close]
+            max_distance *= 10
+    
+        close_ids_comparable_matrix = close_ids_comparable_matrix[:COMPARABLE_SET_SIZE]
+        close_ids = close_ids[:COMPARABLE_SET_SIZE]
+    
+        p_comparables = comparable_matrix.loc[close_ids_comparable_matrix].log_price_plus_comdebt
+    
+        WP = p_comparables.mean()
+    
+        #-------
+    
+        distances = distance_matrix[-1][[close_ids]]
+        if len(distances) > 0:
+            if distances.max() == 0:
+                distances[distances == 0] = 0.000025 # value is irrelevant
+            else:
+                distances[distances == 0] = distances[distances > 0].min()
+        distances = 1 / distances
+    
+        p_times_distance = distances * comparable_matrix.loc[close_ids_comparable_matrix].log_price_plus_comdebt
+    
+        WP = p_times_distance.sum() / distances.sum()
+    
+        # -------
+    
+        WP_list.append(WP)
+    
+        new_progress = round(count / size,2)
+        if old_progress != new_progress:
+            if (int(100*new_progress)) % 10 == 0:
+                print str(int(100*new_progress)) + "%",
+            else:
+                print "|",
+        old_progress = new_progress
+    
+        # print count
+        count += 1
+    
+    print ""
+    print "Done. " + str(round(time.time() - for_loop_start )) + " seconds elapsed."
+    
+    WP_column = pd.Series(WP_list)
+    
+    virdi_augmented = virdi_augmented.assign(WP = WP_column)
+    
+    virdi_augmented = virdi_augmented.dropna(subset = ["WP"])
+    
+    alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_augmented_with_WP.csv")
+    """
+
+    ### ADD PREVIOUS SALES
+
+    prev_sales = address.get_previous_sales()
+    prev_sales = prev_sales[["id", "official_date", "official_price"]]
+    prev_sales = prev_sales.rename(columns={'official_price': 'prev_sale_price_1'})
+    prev_sales = prev_sales.rename(columns={'official_date': 'prev_sale_date_1'})
+
+    virdi_augmented = pd.merge(virdi_augmented, prev_sales, how='left', on='id')
+
+    print "-------------"
+
+    virdi_augmented = virdi_augmented.assign(prev_sale_price_2=np.nan)
+    virdi_augmented = virdi_augmented.assign(prev_sale_date_2=np.nan)
+    virdi_augmented = virdi_augmented.assign(prev_sale_price_3=np.nan)
+    virdi_augmented = virdi_augmented.assign(prev_sale_date_3=np.nan)
+
+    print virdi_augmented[["id", "real_sold_date", "Finalprice", "prev_sale_date_1", "prev_sale_price_1"]].head(50)
+    virdi_augmented.loc[virdi_augmented.Finalprice == virdi_augmented.prev_sale_price_1, 'prev_sale_date_1'] = np.nan
+    virdi_augmented.loc[virdi_augmented.Finalprice == virdi_augmented.prev_sale_price_1, 'prev_sale_price_1'] = np.nan
+    print virdi_augmented[["id", "real_sold_date", "Finalprice", "prev_sale_date_1", "prev_sale_price_1"]].head(50)
+
+    count = 0
+    delete_rows = []
+    progress_count = 0.0
+    size = float(len(virdi_augmented.index))
+    old_progress, new_progress = 0, 0
+
+    print "Mapping previous sales for " + str(size) + " apartments."
+    print "0%",
+    for index, row in virdi_augmented.iterrows():
+        id = row.id
+        prev_id = virdi_augmented.iloc[index - 1].id
+
+        if id == prev_id and count < 3:
+            count += 1
+            prev_sale_price_col_name = "prev_sale_price_" + str(count)
+            prev_sale_date_col_name = "prev_sale_date_" + str(count)
+            virdi_augmented[prev_sale_price_col_name][index - count] = row.prev_sale_price_1
+            virdi_augmented[prev_sale_date_col_name][index - count] = row.prev_sale_date_1
+            delete_rows.append(index)
+        elif id != prev_id:
+            count = 0
         else:
-            distances[distances == 0] = distances[distances > 0].min()
-    distances = 1 / distances
+            delete_rows.append(index)
 
-    p_times_distance = distances * comparable_matrix.loc[close_ids_comparable_matrix].log_price_plus_comdebt
+        new_progress = round(progress_count / size, 2)
+        if old_progress != new_progress:
+            if (int(100 * new_progress)) % 10 == 0:
+                print str(int(100 * new_progress)) + "%",
+            else:
+                print "|",
+        old_progress = new_progress
 
-    WP = p_times_distance.sum() / distances.sum()
+        progress_count += 1
 
-    # -------
+    virdi_augmented = virdi_augmented.drop(virdi_augmented.index[delete_rows])
 
-    WP_list.append(WP)
+    print virdi_augmented[["id", "real_sold_date", "Finalprice", "prev_sale_date_1", "prev_sale_price_1"]].head(50)
 
-    new_progress = round(count / size,2)
-    if old_progress != new_progress:
-        if (int(100*new_progress)) % 10 == 0:
-            print str(int(100*new_progress)) + "%",
-        else:
-            print "|",
-    old_progress = new_progress
+    alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_aug_title_prev_sale.csv")
 
-    # print count
-    count += 1
-
-print ""
-print "Done. " + str(round(time.time() - for_loop_start )) + " seconds elapsed."
-
-WP_column = pd.Series(WP_list)
-
-virdi_augmented = virdi_augmented.assign(WP = WP_column)
-
-virdi_augmented = virdi_augmented.dropna(subset = ["WP"])
-
-alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_augmented_with_WP.csv")
-"""
+else:
+    virdi_augmented = pd.read_csv("C:/Users/tobiasrp/data/virdi_aug_title_prev_sale.csv")
 
 # ------------
 # begin splitting and regressing
@@ -301,6 +365,7 @@ is_borettslag + has_garage + is_penthouse + has_fireplace + has_terrace', \
 
 test_results = res.predict(X_test)
 
+"""
 # ----------------
 # from here: simple comparable implementation
 # ----------------
@@ -358,6 +423,7 @@ test = test.reset_index()
 test = test.assign(residual_adjusted_prediction = test.regression_prediction + resid_median_column)
 
 alva_io.write_to_csv(test,"C:/Users/tobiasrp/data/residual_adjusted_estimates.csv")
+"""
 
 score = pd.DataFrame()
 

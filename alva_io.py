@@ -3,7 +3,7 @@ import pandas as pd, numpy as np, time
 def get_dataframe_from_csv(file_path, delimiter, types, columns):
     start = time.time()
     print("Reading file: " + file_path.split("/")[-1])
-    df = pd.read_csv(file_path, sep=delimiter, dtype=types, usecols=columns) # [0, 36, 37, 85, 86] is address and xy
+    df = pd.read_csv(file_path, sep=delimiter, dtype=types, usecols=columns)
     print("Finished reading file. " + str(round(time.time() - start)) + " seconds elapsed.")
     return df
 
