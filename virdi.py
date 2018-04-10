@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+
+from scipy.spatial.distance import pdist, squareform
 import time
 import alva_io, address
 import pandas as pd
@@ -8,7 +11,7 @@ import statsmodels.api as sm
 import matplotlib.pyplot as plt
 
 SOLD_TO_OFFICIAL_DIFF = 55
-TRAINING_SET_SIZE = 0.9
+TRAINING_SET_SIZE = 0.8
 COMPARABLE_SET_SIZE = 10
 
 if raw_input("Enter to run without new initialization") != "":
@@ -41,9 +44,9 @@ virdi_augmented = virdi_augmented.assign(log_price_plus_comdebt = np.log(virdi_a
 
 size_group_size = 10 #change this only to change group sizes
 size_labels = ["10 -- 29"]
-size_labels += [ "{0} - {1}".format(i, i + size_group_size - 1) for i in range(30, 150, size_group_size) ]
-size_labels.append("150 - 179")
-size_labels.append("180 - ")
+size_labels += [ "{0} -- {1}".format(i, i + size_group_size - 1) for i in range(30, 150, size_group_size) ]
+size_labels.append("150 -- 179")
+size_labels.append("180 -- ")
 
 size_thresholds = [10]
 size_thresholds += [i for i in range(30,151,size_group_size)] + [180] + [500]
@@ -103,22 +106,45 @@ virdi_augmented = virdi_augmented.loc[virdi_augmented.sold_month_and_year != "Ja
 virdi_augmented.loc[virdi_augmented.unit_type == "other", "unit_type"] = "apartment"
 #virdi_augmented = virdi_augmented.loc[virdi_augmented.unit_type != "other"]
 
-virdi_augmented = virdi_augmented.assign(needs_refurbishment = 0)
 virdi_augmented = virdi_augmented.assign(title_lower = virdi_augmented.title.str.lower())
-print virdi_augmented.needs_refurbishment.value_counts()
-virdi_augmented.needs_refurbishment = virdi_augmented.title_lower.str.contains("oppussingsobjekt")
-print virdi_augmented.needs_refurbishment.value_counts()
-virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | virdi_augmented.title_lower.str.contains("oppgraderingsbehov")
-print virdi_augmented.needs_refurbishment.value_counts()
-virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | virdi_augmented.title_lower.str.contains("oppussingsbehov")
-print virdi_augmented.needs_refurbishment.value_counts()
 
+virdi_augmented = virdi_augmented.assign(needs_refurbishment = 0)
+virdi_augmented.needs_refurbishment = virdi_augmented.title_lower.str.contains("oppussingsobjekt")
+virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | virdi_augmented.title_lower.str.contains("oppgraderingsbehov")
+virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | virdi_augmented.title_lower.str.contains("oppussingsbehov")
 virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment.astype(int)
 
-virdi_augmented = virdi_augmented.assign(is_borettslag = virdi_augmented.borettslagetsnavn != "")
-virdi_augmented.needs_refurbishment = virdi_augmented.is_borettslag.astype(int)
+#----------- CREATE NEW COLUMN year_group -----------#
 
-print virdi_augmented.is_borettslag.value_counts()
+year_labels = ['1820 - 1989', '1990 - 2004', '2005 - 2020']
+
+year_thresholds = [1820,1990,2005,2020]
+
+virdi_augmented['year_group'] = pd.cut(virdi_augmented.build_year, year_thresholds, right=False, labels=year_labels)
+virdi_augmented = virdi_augmented.loc[~ pd.isnull(virdi_augmented.year_group)]
+
+# før 1990
+# 1990-2005
+# 2005-2020
+
+
+virdi_augmented = virdi_augmented.assign(is_borettslag = ~pd.isnull(virdi_augmented.borettslagetsnavn))
+virdi_augmented.is_borettslag = virdi_augmented.is_borettslag.astype(int)
+
+virdi_augmented = virdi_augmented.assign(has_garden = virdi_augmented.title_lower.str.contains("hage"))
+virdi_augmented.has_garden = virdi_augmented.has_garden.astype(int)
+virdi_augmented = virdi_augmented.assign(has_garage = virdi_augmented.title_lower.str.contains("garasje"))
+virdi_augmented.has_garage = virdi_augmented.has_garage.astype(int)
+virdi_augmented = virdi_augmented.assign(is_penthouse = virdi_augmented.title_lower.str.contains("toppleilighet"))
+virdi_augmented.is_penthouse = virdi_augmented.is_penthouse.astype(int)
+"""
+virdi_augmented = virdi_augmented.assign(has_balcony = virdi_augmented.title_lower.str.contains("balkong"))
+virdi_augmented.has_balcony = virdi_augmented.has_balcony.astype(int)
+"""
+virdi_augmented = virdi_augmented.assign(has_fireplace = virdi_augmented.title_lower.str.contains("peis"))
+virdi_augmented.has_fireplace = virdi_augmented.has_fireplace.astype(int)
+virdi_augmented = virdi_augmented.assign(has_terrace = virdi_augmented.title_lower.str.contains("terrasse"))
+virdi_augmented.has_terrace = virdi_augmented.has_terrace.astype(int)
 
 """
 for c in columns_to_count:
@@ -207,18 +233,26 @@ virdi_augmented = virdi_augmented.dropna(subset = ["WP"])
 
 alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_augmented_with_WP.csv")
 """
+
 # ------------
 # begin splitting and regressing
 # ------------
+
+"""
+for c in virdi_augmented.columns:
+    print "-------"
+    print c
+    print virdi_augmented[c].isnull().sum()
+"""
 
 threshold = int(TRAINING_SET_SIZE * len(virdi_augmented))
 training = virdi_augmented[:threshold]
 test = virdi_augmented[threshold:]
 
-y,X = dmatrices('log_price_plus_comdebt ~ C(size_group,Treatment(reference="40 - 49")) + \
+y,X = dmatrices('log_price_plus_comdebt ~ C(size_group,Treatment(reference="40 -- 49")) + \
 C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(bydel_code,Treatment(reference="bfr")) + \
-C(unit_type,Treatment(reference="house")) + needs_refurbishment', \
-                data=training, return_type = "dataframe") # excluding build year until videre
+C(unit_type,Treatment(reference="house")) + needs_refurbishment + year_group + has_garden + \
+is_borettslag + has_garage + is_penthouse + has_fireplace + has_terrace', data=training, return_type = "dataframe") # excluding build year until videre
 
 
 #describe model
@@ -240,34 +274,37 @@ virdi_with_resids = training
 virdi_with_resids["resids"] = resids
 
 alva_io.write_to_csv(virdi_with_resids,"C:/Users/tobiasrp/data/virdi_with_resids.csv")
-"""
-"""
+
+
 #magic
 print(res.summary())
+
+"""
+### ROBUST STANDARD ERROR
 print("-----------------")
 print("Robust standard error")
 print()
 print(res.HC0_se)
+"""
 
 #plt.scatter(resids.index,resids)
 #plt.show()
 
 # exogen_matrix = [c for c in subset.columns if c not in regression_columns]
 
-y_test,X_test = dmatrices('log_price_plus_comdebt ~ C(size_group,Treatment(reference="40 - 49")) + \
+y_test,X_test = dmatrices('log_price_plus_comdebt ~ C(size_group,Treatment(reference="40 -- 49")) + \
 C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(bydel_code,Treatment(reference="bfr")) + \
-C(unit_type,Treatment(reference="house")) + needs_refurbishment', \
+C(unit_type,Treatment(reference="house")) + needs_refurbishment + year_group + has_garden + \
+is_borettslag + has_garage + is_penthouse + has_fireplace + has_terrace', \
                 data=test, return_type = "dataframe")
 
 
 test_results = res.predict(X_test)
 
-time.sleep(2)
-
 # ----------------
 # from here: simple comparable implementation
 # ----------------
-"""
+
 test = test.assign(regression_prediction = test_results) # add regression prediction (y_reg) to test set
 
 count = 0.0
@@ -314,7 +351,6 @@ for index, r in test.iterrows():
     # print count
     count += 1
 
-
 resid_median_column = pd.Series(resid_median_list)
 
 test = test.reset_index()
@@ -322,8 +358,6 @@ test = test.reset_index()
 test = test.assign(residual_adjusted_prediction = test.regression_prediction + resid_median_column)
 
 alva_io.write_to_csv(test,"C:/Users/tobiasrp/data/residual_adjusted_estimates.csv")
-"""
-
 
 score = pd.DataFrame()
 
