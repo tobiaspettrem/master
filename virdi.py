@@ -14,6 +14,16 @@ SOLD_TO_OFFICIAL_DIFF = 55
 TRAINING_SET_SIZE = 0.8
 COMPARABLE_SET_SIZE = 10
 
+def get_quarter(date):
+    if pd.isnull(date):
+        return np.nan
+    year = date.year
+    month = date.month
+    quarter = 1 + ((month - 1) // 3)
+    quarter_string = str(year) + "_Q" + str(quarter)
+    return quarter_string
+
+
 if raw_input("Enter to run without new initialization") != "":
 
     virdi_df = alva_io.get_dataframe_from_excel("C:/Users/tobiasrp/data/20180220 Transactions Virdi v2.xlsx")
@@ -31,6 +41,7 @@ if raw_input("Enter to run without new initialization") != "":
     print "print2", virdi_augmented.shape
 
     pd.DataFrame.to_csv(virdi_augmented, "C:/Users/tobiasrp/data/virdi_augmented.csv")
+    #after these operations, scrape FINN for additional data to create virdi augmented with title
 
 else:
     virdi_augmented = pd.read_csv("C:/Users/tobiasrp/data/virdi_augmented_with_title.csv",index_col=0)
@@ -90,7 +101,6 @@ if raw_input("Enter to run without mapping previous sales") != "":
     #   DO REGRESSION
     # ------------------
 
-    virdi_augmented = virdi_augmented.sample(frac=1) # shuffle the dataset to do random training and test partition
     # virdi_augmented = virdi_augmented[["log_price_plus_comdebt","size_group","sold_month_and_year","bydel_code","unit_type", "prom","Total price","coord_x","coord_y"]]
 
     columns_to_count = ["size_group","sold_month_and_year","bydel_code","unit_type"]
@@ -238,6 +248,7 @@ if raw_input("Enter to run without mapping previous sales") != "":
 
     prev_sales = address.get_previous_sales()
     prev_sales = prev_sales[["id", "official_date", "official_price"]]
+
     prev_sales = prev_sales.rename(columns={'official_price': 'prev_sale_price_1'})
     prev_sales = prev_sales.rename(columns={'official_date': 'prev_sale_date_1'})
 
@@ -253,9 +264,14 @@ if raw_input("Enter to run without mapping previous sales") != "":
     print virdi_augmented[["id", "real_sold_date", "Finalprice", "prev_sale_date_1", "prev_sale_price_1"]].head(50)
     virdi_augmented.loc[virdi_augmented.Finalprice == virdi_augmented.prev_sale_price_1, 'prev_sale_date_1'] = np.nan
     virdi_augmented.loc[virdi_augmented.Finalprice == virdi_augmented.prev_sale_price_1, 'prev_sale_price_1'] = np.nan
+
+    virdi_augmented.loc[virdi_augmented.real_sold_date < virdi_augmented.prev_sale_date_1, 'prev_sale_price_1'] = np.nan
+    virdi_augmented.loc[virdi_augmented.real_sold_date < virdi_augmented.prev_sale_date_1, 'prev_sale_date_1'] = np.nan
+
     print virdi_augmented[["id", "real_sold_date", "Finalprice", "prev_sale_date_1", "prev_sale_price_1"]].head(50)
 
     count = 0
+    count_adjustment = 0
     delete_rows = []
     progress_count = 0.0
     size = float(len(virdi_augmented.index))
@@ -269,15 +285,26 @@ if raw_input("Enter to run without mapping previous sales") != "":
 
         if id == prev_id and count < 3:
             count += 1
-            prev_sale_price_col_name = "prev_sale_price_" + str(count)
-            prev_sale_date_col_name = "prev_sale_date_" + str(count)
-            virdi_augmented[prev_sale_price_col_name][index - count] = row.prev_sale_price_1
-            virdi_augmented[prev_sale_date_col_name][index - count] = row.prev_sale_date_1
+            prev_sale_price_col_name = "prev_sale_price_" + str(count - count_adjustment)
+            prev_sale_date_col_name = "prev_sale_date_" + str(count - count_adjustment)
+            if pd.isnull(row.prev_sale_price_1):
+                #print "null: " + str(index)
+                count_adjustment += 1
+            else:
+                virdi_augmented[prev_sale_price_col_name][index - count] = row.prev_sale_price_1
+                virdi_augmented[prev_sale_date_col_name][index - count] = row.prev_sale_date_1
+                count_adjustment = 0
             delete_rows.append(index)
         elif id != prev_id:
+            if not pd.isnull(row.prev_sale_price_1):
+                #print "not null: " + str(index)
+                count_adjustment = -1
+            else:
+                count_adjustment = 0
             count = 0
         else:
             delete_rows.append(index)
+            # count += 1 not necessary
 
         new_progress = round(progress_count / size, 2)
         if old_progress != new_progress:
@@ -290,13 +317,57 @@ if raw_input("Enter to run without mapping previous sales") != "":
         progress_count += 1
 
     virdi_augmented = virdi_augmented.drop(virdi_augmented.index[delete_rows])
-
-    print virdi_augmented[["id", "real_sold_date", "Finalprice", "prev_sale_date_1", "prev_sale_price_1"]].head(50)
-
     alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_aug_title_prev_sale.csv")
 
 else:
     virdi_augmented = pd.read_csv("C:/Users/tobiasrp/data/virdi_aug_title_prev_sale.csv")
+
+
+
+virdi_augmented = virdi_augmented.sample(frac=1) # shuffle the dataset to do random training and test partition
+
+virdi_augmented = virdi_augmented.assign(real_sold_date = virdi_augmented.real_sold_date.map(lambda x: pd.to_datetime(x)))
+virdi_augmented = virdi_augmented.assign(prev_sale_date_1 = virdi_augmented.prev_sale_date_1.map(lambda x: pd.to_datetime(x)))
+virdi_augmented = virdi_augmented.assign(prev_sale_date_2 = virdi_augmented.prev_sale_date_2.map(lambda x: pd.to_datetime(x)))
+virdi_augmented = virdi_augmented.assign(prev_sale_date_3 = virdi_augmented.prev_sale_date_3.map(lambda x: pd.to_datetime(x)))
+
+# shift all prev sale dates because data is based on date of public registration
+virdi_augmented = virdi_augmented.assign(prev_sale_date_1=np.where((~virdi_augmented.prev_sale_date_1.isnull()), \
+                                                                   virdi_augmented.prev_sale_date_1 - pd.Timedelta(days=SOLD_TO_OFFICIAL_DIFF), \
+                                                                   virdi_augmented.prev_sale_date_1))
+
+virdi_augmented = virdi_augmented.assign(prev_sale_date_2=np.where((~virdi_augmented.prev_sale_date_2.isnull()), \
+                                                                   virdi_augmented.prev_sale_date_2 - pd.Timedelta(days=SOLD_TO_OFFICIAL_DIFF), \
+                                                                   virdi_augmented.prev_sale_date_2))
+
+virdi_augmented = virdi_augmented.assign(prev_sale_date_3=np.where((~virdi_augmented.prev_sale_date_3.isnull()), \
+                                                                   virdi_augmented.prev_sale_date_3 - pd.Timedelta(days=SOLD_TO_OFFICIAL_DIFF), \
+                                                                   virdi_augmented.prev_sale_date_3))
+
+virdi_augmented = virdi_augmented.assign(real_sold_quarter = virdi_augmented.real_sold_date.map(lambda x: get_quarter(x)))
+virdi_augmented = virdi_augmented.assign(prev_sale_quarter_1 = virdi_augmented.prev_sale_date_1.map(lambda x: get_quarter(x)))
+virdi_augmented = virdi_augmented.assign(prev_sale_quarter_2 = virdi_augmented.prev_sale_date_2.map(lambda x: get_quarter(x)))
+virdi_augmented = virdi_augmented.assign(prev_sale_quarter_3 = virdi_augmented.prev_sale_date_3.map(lambda x: get_quarter(x)))
+
+print ""
+print "Caluclating repeat sales estimates"
+price_index_ssb = pd.read_csv("C:/Users/tobiasrp/data/price_index_oslo_ssb.csv", sep=";")
+
+virdi_augmented = virdi_augmented.assign(real_sold_index = virdi_augmented.real_sold_quarter.map(lambda x: price_index_ssb.loc[price_index_ssb.quarter == x, "index"].iloc[0]))
+print "Repeat 1"
+virdi_augmented = virdi_augmented.assign(prev_sale_index_1 = virdi_augmented.prev_sale_quarter_1.map(lambda x: price_index_ssb.loc[price_index_ssb.quarter == x, "index"].iloc[0], na_action = 'ignore'))
+print "Repeat 2"
+virdi_augmented = virdi_augmented.assign(prev_sale_index_2 = virdi_augmented.prev_sale_quarter_2.map(lambda x: price_index_ssb.loc[price_index_ssb.quarter == x, "index"].iloc[0], na_action = 'ignore'))
+print "Repeat 3"
+virdi_augmented = virdi_augmented.assign(prev_sale_index_3 = virdi_augmented.prev_sale_quarter_3.map(lambda x: price_index_ssb.loc[price_index_ssb.quarter == x, "index"].iloc[0], na_action = 'ignore'))
+alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_aug_title_prev_sale_estimates.csv")
+
+virdi_augmented = virdi_augmented.assign(prev_sale_estimate_1 = (virdi_augmented.prev_sale_price_1 * virdi_augmented.real_sold_index / virdi_augmented.prev_sale_index_1) + virdi_augmented.common_debt)
+virdi_augmented = virdi_augmented.assign(prev_sale_estimate_2 = (virdi_augmented.prev_sale_price_2 * virdi_augmented.real_sold_index / virdi_augmented.prev_sale_index_2) + virdi_augmented.common_debt)
+virdi_augmented = virdi_augmented.assign(prev_sale_estimate_3 = (virdi_augmented.prev_sale_price_3 * virdi_augmented.real_sold_index / virdi_augmented.prev_sale_index_3) + virdi_augmented.common_debt)
+
+print "Done calculating repeat sales estimates"
+alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_aug_title_prev_sale_estimates.csv")
 
 # ------------
 # begin splitting and regressing
@@ -363,7 +434,10 @@ is_borettslag + has_garage + is_penthouse + has_fireplace + has_terrace', \
                 data=test, return_type = "dataframe")
 
 
-test_results = res.predict(X_test)
+reg_predictions = res.predict(X_test)
+rep_1_predictions = test.prev_sale_estimate_1
+rep_2_predictions = test.prev_sale_estimate_2
+rep_3_predictions = test.prev_sale_estimate_3
 
 """
 # ----------------
@@ -433,22 +507,31 @@ alva_io.write_to_csv(test,"C:/Users/tobiasrp/data/residual_adjusted_estimates.cs
 
 score = pd.DataFrame()
 
-score = score.assign(predicted_value = (test.prom*np.exp(test_results))).astype(int)
+score = score.assign(reg_prediction = (test.prom * np.exp(reg_predictions))).astype(int)
 score = score.assign(true_value = test["Total price"])
-score = score.assign(deviation = score.true_value - score.predicted_value)
-score = score.assign(deviation_percentage = abs(score.deviation / score.true_value))
+score = score.assign(reg_deviation = score.true_value - score.reg_prediction)
+score = score.assign(reg_deviation_percentage = abs(score.reg_deviation / score.true_value))
+score = score.assign(rep_1_deviation = score.true_value - rep_1_predictions)
+score = score.assign(rep_2_deviation = score.true_value - rep_2_predictions)
+score = score.assign(rep_3_deviation = score.true_value - rep_3_predictions)
+score = score.assign(rep_1_deviation_percentage = abs(score.rep_1_deviation / score.true_value))
+score = score.assign(rep_2_deviation_percentage = abs(score.rep_2_deviation / score.true_value))
+score = score.assign(rep_3_deviation_percentage = abs(score.rep_3_deviation / score.true_value))
+
+### LEFT OFF HERE
+
+### score = score.assign(basic_estimate = ) TODO
 
 print ""
 print "Test Results"
 print ""
-print(score.head())
+print "Medianfeil regresjon:",100*round(score.reg_deviation_percentage.median(),5),"%"
 print ""
-print "Median feil:",100*round(score.deviation_percentage.median(),5),"%"
+print "Gjennomsnittsfeil regresjon:",100*round(score.reg_deviation_percentage.mean(),5),"%"
 print ""
-print "Gjennomsnitt feil:",100*round(score.deviation_percentage.mean(),5),"%"
-print ""
-print "Kvantiler"
-print(score.quantile([0.25,0.5,0.75]))
+print "Repeat 1, medianfeil:",100*round(score.rep_1_deviation_percentage.median(),5),"%"
+print "Repeat 2, medianfeil:",100*round(score.rep_2_deviation_percentage.median(),5),"%"
+print "Repeat 3, medianfeil:",100*round(score.rep_3_deviation_percentage.median(),5),"%"
 
 # fig = sm.graphics.plot_partregress("sqmeter_price","prom",["sold_month","ordinal_sold_date","bydel"],data=subset, obs_labels=False)
 # fig.show()

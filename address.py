@@ -61,7 +61,7 @@ def get_previous_sales():
 
     print ""
 
-    grunnbok = grunnbok.sort_values(by=['address_id', 'sold_year'], ascending=[True,False])
+    grunnbok = grunnbok.sort_values(by=['address_id', 'official_date'], ascending=[True,False])
 
     grunnbok = grunnbok.rename(columns = {'address_id':'id'})
 
