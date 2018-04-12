@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 SOLD_TO_OFFICIAL_DIFF = 55
 TRAINING_SET_SIZE = 0.8
-COMPARABLE_SET_SIZE = 10
+COMPARABLE_SET_SIZE = 20
 
 def get_quarter(date):
     if pd.isnull(date):
@@ -322,7 +322,9 @@ if raw_input("Enter to run without mapping previous sales") != "":
 else:
     virdi_augmented = pd.read_csv("C:/Users/tobiasrp/data/virdi_aug_title_prev_sale.csv")
 
-
+# ------------
+# Calculate repeat sales estimates
+# ------------
 
 virdi_augmented = virdi_augmented.sample(frac=1) # shuffle the dataset to do random training and test partition
 
@@ -351,6 +353,7 @@ virdi_augmented = virdi_augmented.assign(prev_sale_quarter_3 = virdi_augmented.p
 
 print ""
 print "Caluclating repeat sales estimates"
+
 price_index_ssb = pd.read_csv("C:/Users/tobiasrp/data/price_index_oslo_ssb.csv", sep=";")
 
 virdi_augmented = virdi_augmented.assign(real_sold_index = virdi_augmented.real_sold_quarter.map(lambda x: price_index_ssb.loc[price_index_ssb.quarter == x, "index"].iloc[0]))
@@ -366,11 +369,17 @@ virdi_augmented = virdi_augmented.assign(prev_sale_estimate_1 = (virdi_augmented
 virdi_augmented = virdi_augmented.assign(prev_sale_estimate_2 = (virdi_augmented.prev_sale_price_2 * virdi_augmented.real_sold_index / virdi_augmented.prev_sale_index_2) + virdi_augmented.common_debt)
 virdi_augmented = virdi_augmented.assign(prev_sale_estimate_3 = (virdi_augmented.prev_sale_price_3 * virdi_augmented.real_sold_index / virdi_augmented.prev_sale_index_3) + virdi_augmented.common_debt)
 
+virdi_augmented = virdi_augmented.assign(prev_sale_estimate_1 = virdi_augmented.prev_sale_estimate_1.map(lambda x: int(x) if not np.isnan(x) else x))
+virdi_augmented = virdi_augmented.assign(prev_sale_estimate_2 = virdi_augmented.prev_sale_estimate_2.map(lambda x: int(x) if not np.isnan(x) else x))
+virdi_augmented = virdi_augmented.assign(prev_sale_estimate_3 = virdi_augmented.prev_sale_estimate_3.map(lambda x: int(x) if not np.isnan(x) else x))
+
 print "Done calculating repeat sales estimates"
 alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_aug_title_prev_sale_estimates.csv")
 
+print ""
+print "Running regression"
 # ------------
-# begin splitting and regressing
+# Begin splitting and regressing
 # ------------
 
 """
@@ -403,14 +412,6 @@ mod = sm.OLS(y,X,missing = 'drop')
 #fit model
 res = mod.fit()
 
-resids = res.resid
-
-virdi_with_resids = training
-virdi_with_resids["resids"] = resids
-
-alva_io.write_to_csv(virdi_with_resids,"C:/Users/tobiasrp/data/virdi_with_resids.csv")
-
-
 #magic
 print(res.summary())
 
@@ -422,60 +423,180 @@ print()
 print(res.HC0_se)
 """
 
-#plt.scatter(resids.index,resids)
-#plt.show()
-
-# exogen_matrix = [c for c in subset.columns if c not in regression_columns]
-
 y_test,X_test = dmatrices('log_price_plus_comdebt ~ C(size_group,Treatment(reference="40 -- 49")) + \
 C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(bydel_code,Treatment(reference="bfr")) + \
 C(unit_type,Treatment(reference="house")) + needs_refurbishment + year_group + has_garden + \
 is_borettslag + has_garage + is_penthouse + has_fireplace + has_terrace', \
                 data=test, return_type = "dataframe")
 
-
 reg_predictions = res.predict(X_test)
-rep_1_predictions = test.prev_sale_estimate_1
-rep_2_predictions = test.prev_sale_estimate_2
-rep_3_predictions = test.prev_sale_estimate_3
 
-"""
-# ----------------
-# from here: simple comparable implementation
-# ----------------
+print "Regression done"
+print ""
+# ------------
+# Regression done
+# ------------
 
-test = test.assign(regression_prediction = test_results) # add regression prediction (y_reg) to test set
+# ------------
+# Construct basic estimates for training set
+# ------------
+
+training = training.assign(regression_residuals = res.resid)
+
+training = training.assign(fitted_values = res.fittedvalues)
+fitted_training_values_natural = (np.exp(res.fittedvalues) * training.prom).astype(int)
+training = training.assign(fitted_values_nat = fitted_training_values_natural)
+
+print "Constructing basic estimates for training set"
+### Remove repeated estimates if it deviates too much from fitted value (training set)
+
+prev_sale_price_1_reasonable = (abs(training.prev_sale_estimate_1 - fitted_training_values_natural) / fitted_training_values_natural) < 0.25 ### using method from previous model
+prev_sale_price_2_reasonable = (abs(training.prev_sale_estimate_2 - fitted_training_values_natural) / fitted_training_values_natural) < 0.25 ### using method from previous model
+prev_sale_price_3_reasonable = (abs(training.prev_sale_estimate_3 - fitted_training_values_natural) / fitted_training_values_natural) < 0.25 ### using method from previous model
+
+training = training.assign(prev_sale_estimate_3 = np.where(prev_sale_price_3_reasonable, training.prev_sale_estimate_3,np.nan))                             # set 3 to nan if invalid
+training = training.assign(prev_sale_estimate_2 = np.where(prev_sale_price_2_reasonable, training.prev_sale_estimate_2,training.prev_sale_estimate_3))      # set 2 to 3 if 2 invalid
+training = training.assign(prev_sale_estimate_3 = np.where(prev_sale_price_2_reasonable, training.prev_sale_estimate_3,np.nan))                             # remove 3 if 2 invalid
+training = training.assign(prev_sale_estimate_1 = np.where(prev_sale_price_1_reasonable, training.prev_sale_estimate_1,training.prev_sale_estimate_2))      # set 1 to 2 if 1 invalid
+training = training.assign(prev_sale_estimate_2 = np.where(prev_sale_price_1_reasonable, training.prev_sale_estimate_2,np.nan))                             # remove 2 if 1 invalid
+
+prev_sale_price_2_reasonable = (abs(training.prev_sale_estimate_2 - fitted_training_values_natural) / fitted_training_values_natural) < 0.25 ### using method from previous model
+training = training.assign(prev_sale_estimate_2 = np.where(prev_sale_price_2_reasonable, training.prev_sale_estimate_2,training.prev_sale_estimate_3))      # set 2 to 3 if 2 invalid
+training = training.assign(prev_sale_estimate_3 = np.where(prev_sale_price_2_reasonable, training.prev_sale_estimate_3,np.nan))                             # remove 3 if 2 invalid
+
+prev_sale_price_1_exists = ~pd.isnull(training.prev_sale_estimate_1)
+prev_sale_price_2_exists = ~pd.isnull(training.prev_sale_estimate_2)
+prev_sale_price_3_exists = ~pd.isnull(training.prev_sale_estimate_3)
+
+number_of_prev_sales = prev_sale_price_1_exists.astype(int) + prev_sale_price_2_exists.astype(int) + prev_sale_price_3_exists.astype(int)
+
+training = training.assign(number_of_prev_sales = number_of_prev_sales)
+
+number_of_prev_sales_dummy = pd.get_dummies(training.number_of_prev_sales)
+
+basic_est_0 = training.fitted_values_nat
+basic_est_1 = 0.5 * training.fitted_values_nat + 0.5 * training.prev_sale_estimate_1
+basic_est_2 = 0.5 * training.fitted_values_nat + 0.5 * (0.9 * training.prev_sale_estimate_1 + 0.1 * training.prev_sale_estimate_2)
+basic_est_3 = 0.5 * training.fitted_values_nat + 0.5 * (0.85 * training.prev_sale_estimate_1 + 0.15 * (0.8 * training.prev_sale_estimate_2 + 0.2 * training.prev_sale_estimate_3))
+
+basic_estimate_matrix = pd.concat([basic_est_0,basic_est_1,basic_est_2,basic_est_3], axis = 1)
+
+basic_estimate_matrix = pd.DataFrame(data=np.where(number_of_prev_sales_dummy, basic_estimate_matrix, 0))
+basic_estimate = basic_estimate_matrix.sum(axis = 1)
+basic_estimate = basic_estimate.astype(int)
+
+training = training.reset_index()
+
+basic_estimate_log = np.log(basic_estimate / training.prom)
+basic_estimate_residual = training.log_price_plus_comdebt - basic_estimate_log
+
+training = training.assign(basic_estimate = basic_estimate)
+training = training.assign(basic_estimate_log = basic_estimate_log)
+training = training.assign(basic_estimate_residual = basic_estimate_residual)
+
+training = training.assign(basic_estimate_deviation = training["Total price"] - training.basic_estimate)
+alva_io.write_to_csv(training, "C:/Users/tobiasrp/data/basic_estimate_residuals.csv")
+
+print "Constructing basic estimates for test set"
+
+
+# ------------
+# Construct basic estimates for test set
+# ------------
+
+
+test = test.assign(reg_prediction = reg_predictions) # add regression prediction (y_reg) to test set
+test = test.assign(reg_prediction_nat = (np.exp(reg_predictions) * test.prom).astype(int))
+
+### Remove repeated estimates if it deviates too much from fitted value (test set)
+
+prev_sale_price_1_reasonable = (abs(test.prev_sale_estimate_1 - test.reg_prediction_nat) / test.reg_prediction_nat) < 0.25 ### using method from previous model
+prev_sale_price_2_reasonable = (abs(test.prev_sale_estimate_2 - test.reg_prediction_nat) / test.reg_prediction_nat) < 0.25 ### using method from previous model
+prev_sale_price_3_reasonable = (abs(test.prev_sale_estimate_3 - test.reg_prediction_nat) / test.reg_prediction_nat) < 0.25 ### using method from previous model
+
+test = test.assign(prev_sale_estimate_3 = np.where(prev_sale_price_3_reasonable, test.prev_sale_estimate_3,np.nan))                             # set 3 to nan if invalid
+test = test.assign(prev_sale_estimate_2 = np.where(prev_sale_price_2_reasonable, test.prev_sale_estimate_2,test.prev_sale_estimate_3))          # set 2 to 3 if 2 invalid
+test = test.assign(prev_sale_estimate_3 = np.where(prev_sale_price_2_reasonable, test.prev_sale_estimate_3,np.nan))                             # remove 3 if 2 invalid
+test = test.assign(prev_sale_estimate_1 = np.where(prev_sale_price_1_reasonable, test.prev_sale_estimate_1,test.prev_sale_estimate_2))          # set 1 to 2 if 1 invalid
+test = test.assign(prev_sale_estimate_2 = np.where(prev_sale_price_1_reasonable, test.prev_sale_estimate_2,np.nan))                             # remove 2 if 1 invalid
+
+prev_sale_price_2_reasonable = (abs(test.prev_sale_estimate_2 - test.reg_prediction_nat) / test.reg_prediction_nat) < 0.25 ### using method from previous model
+test = test.assign(prev_sale_estimate_2 = np.where(prev_sale_price_2_reasonable, test.prev_sale_estimate_2,test.prev_sale_estimate_3))          # set 2 to 3 if 2 invalid
+test = test.assign(prev_sale_estimate_3 = np.where(prev_sale_price_2_reasonable, test.prev_sale_estimate_3,np.nan))                             # remove 3 if 2 invalid
+
+prev_sale_price_1_exists = ~pd.isnull(test.prev_sale_estimate_1)
+prev_sale_price_2_exists = ~pd.isnull(test.prev_sale_estimate_2)
+prev_sale_price_3_exists = ~pd.isnull(test.prev_sale_estimate_3)
+
+number_of_prev_sales = prev_sale_price_1_exists.astype(int) + prev_sale_price_2_exists.astype(int) + prev_sale_price_3_exists.astype(int)
+
+test = test.assign(number_of_prev_sales = number_of_prev_sales)
+print test.number_of_prev_sales.value_counts()
+
+number_of_prev_sales_dummy = pd.get_dummies(test.number_of_prev_sales)
+
+basic_est_0 = test.reg_prediction_nat
+basic_est_1 = 0.5 * test.reg_prediction_nat + 0.5 * test.prev_sale_estimate_1
+basic_est_2 = 0.5 * test.reg_prediction_nat + 0.5 * (0.9 * test.prev_sale_estimate_1 + 0.1 * test.prev_sale_estimate_2)
+basic_est_3 = 0.5 * test.reg_prediction_nat + 0.5 * (0.85 * test.prev_sale_estimate_1 + 0.15 * (0.8 * test.prev_sale_estimate_2 + 0.2 * test.prev_sale_estimate_3))
+
+basic_estimate_matrix = pd.concat([basic_est_0,basic_est_1,basic_est_2,basic_est_3], axis = 1)
+
+basic_estimate_matrix = pd.DataFrame(data=np.where(number_of_prev_sales_dummy, basic_estimate_matrix, 0))
+basic_estimate = basic_estimate_matrix.sum(axis = 1)
+basic_estimate = basic_estimate.astype(int)
+
+test = test.reset_index()
+
+basic_estimate_log = np.log(basic_estimate / test.prom)
+basic_estimate_residual = test.log_price_plus_comdebt - basic_estimate_log
+
+test = test.assign(basic_estimate = basic_estimate)
+test = test.assign(basic_estimate_log = basic_estimate_log)
+test = test.assign(basic_estimate_residual = basic_estimate_residual)
+
+#################################
+
+# ----------------
+# Simple comparable implementation
+# ----------------
 
 count = 0.0
 size = float(len(test.index))
 old_progress, new_progress = 0,0
 resid_median_list = []
 
-print "Mapping distances"
+print ""
+print "Mapping distances for comparable method"
 print "0%",
 
+mapping_start = time.time()
+
 for index, r in test.iterrows():
-    district_matrix = training.loc[training.bydel_code == r.bydel_code]
+    district_matrix = training.loc[training.bydel_code == r.bydel_code] #HUSK Å NOTERE DETTE ET STED
     district_matrix = district_matrix.append(r)
 
     distance_matrix = squareform(pdist(district_matrix[["coord_x","coord_y"]]))
 
     max_distance = 0.000025
-
+    prev_max_distance = -1
     close_ids = []
 
     while len(close_ids) < COMPARABLE_SET_SIZE and max_distance <= 0.0025:
-        close_points = (distance_matrix[-1] < max_distance)
+        close_points = (distance_matrix[-1] <= max_distance) & (distance_matrix[-1] > prev_max_distance)
         close_points[-1] = False # exclude itself
-        close_ids = [district_matrix.iloc[index].name for index, close in enumerate(close_points) if close]
-        max_distance *= 10
+        close_ids += [district_matrix.iloc[index].name for index, close in enumerate(close_points) if close]
+        prev_max_distance = max_distance
+        max_distance *= 1.1
 
     close_ids = close_ids[:COMPARABLE_SET_SIZE]
 
-    close_resids = training.loc[close_ids].resids
+    close_resids = training.loc[close_ids].basic_estimate_residual
 
-    #print close_ids
     resid_median = close_resids.median()
+
+    if len(close_resids < 3):
+        resid_median /= 2
 
     resid_median_list.append(resid_median)
 
@@ -487,51 +608,74 @@ for index, r in test.iterrows():
             print "|",
     old_progress = new_progress
 
-    # print count
     count += 1
 
+print ""
+print "Done mapping distances. " + str(round(time.time() - mapping_start)) + " seconds elapsed."
 resid_median_column = pd.Series(resid_median_list)
 
-test = test.reset_index()
+#test = test.reset_index()
 
-test = test.assign(residual_adjusted_prediction = test.regression_prediction + resid_median_column)
+test = test.assign(residual_adjusted_basic_estimate = test.basic_estimate_log + resid_median_column)
+test = test.assign(residual_adjusted_basic_estimate = test.residual_adjusted_basic_estimate.fillna(test.basic_estimate_log))
 
-### ADD HERE!
-### FILLING OUT NANs IN THE RESIDUAL ADJUSTED PREDICTION WITH REGRESSION PREDICTION
-### ALSO, CALCULATE ERROR FOR REGRESSION AND RESIDUAL ADJUSTED ESTIMATES
+test = test.assign(residual_adjusted_basic_estimate_nat = (test.prom * np.exp(test.residual_adjusted_basic_estimate)).astype(int))
+
+### LATER, CALCULATE ERROR FOR REGRESSION AND RESIDUAL ADJUSTED ESTIMATES
 
 alva_io.write_to_csv(test,"C:/Users/tobiasrp/data/residual_adjusted_estimates.csv")
 
-"""
 # END COMPARABLE MODEL
+
 
 score = pd.DataFrame()
 
-score = score.assign(reg_prediction = (test.prom * np.exp(reg_predictions))).astype(int)
+
 score = score.assign(true_value = test["Total price"])
+
+score = score.assign(reg_prediction = test.reg_prediction_nat)
 score = score.assign(reg_deviation = score.true_value - score.reg_prediction)
 score = score.assign(reg_deviation_percentage = abs(score.reg_deviation / score.true_value))
-score = score.assign(rep_1_deviation = score.true_value - rep_1_predictions)
-score = score.assign(rep_2_deviation = score.true_value - rep_2_predictions)
-score = score.assign(rep_3_deviation = score.true_value - rep_3_predictions)
+
+score = score.assign(rep_1_prediction = test.prev_sale_estimate_1)
+score = score.assign(rep_2_prediction = test.prev_sale_estimate_2)
+score = score.assign(rep_3_prediction = test.prev_sale_estimate_3)
+score = score.assign(rep_1_deviation = score.true_value - score.rep_1_prediction)
+score = score.assign(rep_2_deviation = score.true_value - score.rep_2_prediction)
+score = score.assign(rep_3_deviation = score.true_value - score.rep_3_prediction)
 score = score.assign(rep_1_deviation_percentage = abs(score.rep_1_deviation / score.true_value))
 score = score.assign(rep_2_deviation_percentage = abs(score.rep_2_deviation / score.true_value))
 score = score.assign(rep_3_deviation_percentage = abs(score.rep_3_deviation / score.true_value))
 
-### LEFT OFF HERE
+score = score.assign(basic_prediction = test.basic_estimate)
+score = score.assign(basic_deviation = score.true_value - score.basic_prediction)
+score = score.assign(basic_deviation_percentage = abs(score.basic_deviation / score.true_value))
 
-### score = score.assign(basic_estimate = ) TODO
+score = score.assign(comparable_prediction = test.residual_adjusted_basic_estimate_nat)
+score = score.assign(comparable_deviation = score.true_value - score.comparable_prediction)
+score = score.assign(comparable_deviation_percentage = abs(score.comparable_deviation / score.true_value))
 
 print ""
-print "Test Results"
+print " -------- Test Results -------- "
 print ""
 print "Medianfeil regresjon:",100*round(score.reg_deviation_percentage.median(),5),"%"
 print ""
 print "Gjennomsnittsfeil regresjon:",100*round(score.reg_deviation_percentage.mean(),5),"%"
+print score.reg_deviation_percentage.quantile([.25, .5, .75])
 print ""
 print "Repeat 1, medianfeil:",100*round(score.rep_1_deviation_percentage.median(),5),"%"
+print score.rep_1_deviation_percentage.quantile([.25, .5, .75])
 print "Repeat 2, medianfeil:",100*round(score.rep_2_deviation_percentage.median(),5),"%"
+print score.rep_2_deviation_percentage.quantile([.25, .5, .75])
 print "Repeat 3, medianfeil:",100*round(score.rep_3_deviation_percentage.median(),5),"%"
+print score.rep_3_deviation_percentage.quantile([.25, .5, .75])
+print "Basic-estimat, medianfeil:",100*round(score.basic_deviation_percentage.median(),5),"%"
+print score.basic_deviation_percentage.quantile([.25, .5, .75])
+
+
+print "Comparable-estimat, medianfeil:",100*round(score.comparable_deviation_percentage.median(),5),"%"
+print score.comparable_deviation_percentage.quantile([.25, .5, .75])
+
 
 # fig = sm.graphics.plot_partregress("sqmeter_price","prom",["sold_month","ordinal_sold_date","bydel"],data=subset, obs_labels=False)
 # fig.show()
