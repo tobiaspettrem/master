@@ -343,8 +343,6 @@ virdi_augmented = virdi_augmented.dropna(subset = ["WP"])
 alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_augmented_with_WP.csv")
 """
 
-print virdi_augmented.has_three_bedrooms.value_counts()
-
 # ------------
 # Calculate repeat sales estimates
 # ------------
@@ -386,7 +384,6 @@ print "Repeat 2"
 virdi_augmented = virdi_augmented.assign(prev_sale_index_2 = virdi_augmented.prev_sale_quarter_2.map(lambda x: price_index_ssb.loc[price_index_ssb.quarter == x, "index"].iloc[0], na_action = 'ignore'))
 print "Repeat 3"
 virdi_augmented = virdi_augmented.assign(prev_sale_index_3 = virdi_augmented.prev_sale_quarter_3.map(lambda x: price_index_ssb.loc[price_index_ssb.quarter == x, "index"].iloc[0], na_action = 'ignore'))
-alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_aug_title_prev_sale_estimates.csv")
 
 virdi_augmented = virdi_augmented.assign(prev_sale_estimate_1 = (virdi_augmented.prev_sale_price_1 * virdi_augmented.real_sold_index / virdi_augmented.prev_sale_index_1) + virdi_augmented.common_debt)
 virdi_augmented = virdi_augmented.assign(prev_sale_estimate_2 = (virdi_augmented.prev_sale_price_2 * virdi_augmented.real_sold_index / virdi_augmented.prev_sale_index_2) + virdi_augmented.common_debt)
