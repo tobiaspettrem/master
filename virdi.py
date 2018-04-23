@@ -409,6 +409,8 @@ for c in virdi_augmented.columns:
     print virdi_augmented[c].isnull().sum()
 """
 
+reg_start = time.time()
+
 threshold = int(TRAINING_SET_SIZE * len(virdi_augmented))
 training = virdi_augmented[:threshold]
 test = virdi_augmented[threshold:]
@@ -453,6 +455,8 @@ has_three_bedrooms', data=test, return_type = "dataframe")
 reg_predictions = res.predict(X_test)
 
 print "Regression done"
+print str(round(time.time() - reg_start,4)) + "seconds elapsed"
+print
 print ""
 # ------------
 # Regression done
