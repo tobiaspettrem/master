@@ -8,13 +8,20 @@ import numpy as np
 import calendar
 from patsy import dmatrices
 import statsmodels.api as sm
+import kmeans
 import matplotlib.pyplot as plt
 
+USER_STRING = "Tobias"
 SOLD_TO_OFFICIAL_DIFF = 55
 TRAINING_SET_SIZE = 0.8
 COMPARABLE_SET_SIZE = 10
+AUTOREGRESSIVE_COMPARABLE_SET_SIZE = 10
 RUN_LAD = True
 REG_SHARE = 0.5
+KMEANS_K = 15
+KNN_K = 5
+
+print "AUTOREGRESSIVE_SIZE: " + str(AUTOREGRESSIVE_COMPARABLE_SET_SIZE)
 
 def get_quarter(date):
     if pd.isnull(date):
@@ -28,7 +35,7 @@ def get_quarter(date):
 
 if raw_input("Enter to run without new initialization") != "":
 
-    virdi_df = alva_io.get_dataframe_from_excel("C:/Users/tobiasrp/data/20180220 Transactions Virdi v2.xlsx")
+    virdi_df = alva_io.get_dataframe_from_excel("C:/Users/" + USER_STRING + "/data/20180220 Transactions Virdi v2.xlsx")
 
     address_df = address.get_address()
 
@@ -42,11 +49,11 @@ if raw_input("Enter to run without new initialization") != "":
     virdi_augmented = virdi_augmented.dropna(subset = ["ad_code"])
     print "print2", virdi_augmented.shape
 
-    pd.DataFrame.to_csv(virdi_augmented, "C:/Users/tobiasrp/data/virdi_augmented.csv")
+    pd.DataFrame.to_csv(virdi_augmented, "C:/Users/" + USER_STRING + "/data/virdi_augmented.csv")
     #after these operations, scrape FINN for additional data to create virdi augmented with title
 
 else:
-    virdi_augmented = pd.read_csv("C:/Users/tobiasrp/data/virdi_augmented_with_title.csv",index_col=0)
+    virdi_augmented = pd.read_csv("C:/Users/" + USER_STRING + "/data/virdi_augmented_with_title.csv",index_col=0)
 
 if raw_input("Enter to run without mapping previous sales") != "":
 
@@ -117,7 +124,6 @@ if raw_input("Enter to run without mapping previous sales") != "":
             prev_sale_price_col_name = "prev_sale_price_" + str(count - count_adjustment)
             prev_sale_date_col_name = "prev_sale_date_" + str(count - count_adjustment)
             if pd.isnull(row.prev_sale_price_1):
-                #print "null: " + str(index)
                 count_adjustment += 1
             else:
                 virdi_augmented[prev_sale_price_col_name][index - count] = row.prev_sale_price_1
@@ -126,14 +132,12 @@ if raw_input("Enter to run without mapping previous sales") != "":
             delete_rows.append(index)
         elif id != prev_id:
             if not pd.isnull(row.prev_sale_price_1):
-                #print "not null: " + str(index)
                 count_adjustment = -1
             else:
                 count_adjustment = 0
             count = 0
         else:
             delete_rows.append(index)
-            # count += 1 not necessary
 
         new_progress = round(progress_count / size, 2)
         if old_progress != new_progress:
@@ -146,7 +150,7 @@ if raw_input("Enter to run without mapping previous sales") != "":
         progress_count += 1
 
     virdi_augmented = virdi_augmented.drop(virdi_augmented.index[delete_rows])
-    alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_aug_title_prev_sale.csv")
+    alva_io.write_to_csv(virdi_augmented,"C:/Users/" + USER_STRING + "/data/virdi_aug_title_prev_sale.csv")
 
     print ""
     print ""
@@ -154,7 +158,7 @@ if raw_input("Enter to run without mapping previous sales") != "":
     #########################
 
 else:
-    virdi_augmented = pd.read_csv("C:/Users/tobiasrp/data/virdi_aug_title_prev_sale.csv")
+    virdi_augmented = pd.read_csv("C:/Users/" + USER_STRING + "/data/virdi_aug_title_prev_sale.csv")
     virdi_augmented = virdi_augmented.assign(real_sold_date = pd.to_datetime(virdi_augmented["real_sold_date"],format="%Y-%m-%d"))
 
 
@@ -164,6 +168,25 @@ else:
     print "Running OLS with basic model regression share: " + str(REG_SHARE * 100) + "%."
 
 # virdi = virdi.loc[virdi["kr/m2"] > ] # cutting on sqm price
+
+# MANUALLY CORRECTING SOME VERY WRONG PRICES. BASED ON FINN AND EIENDOMSVERDI
+
+virdi_augmented.loc[virdi_augmented.ad_code == 85468204.0, "Finalprice"] = 3290000.0
+virdi_augmented.loc[virdi_augmented.ad_code == 85468204.0, "Total price"] = 3290000.0 + 41000.0
+virdi_augmented.loc[virdi_augmented.ad_code == 85468204.0, "kr/m2"] = 48985.2941
+
+virdi_augmented.loc[virdi_augmented.ad_code == 98106987, "Finalprice"] = 4325000.0
+virdi_augmented.loc[virdi_augmented.ad_code == 98106987, "Total price"] = 4325000.0 + 288000.0
+virdi_augmented.loc[virdi_augmented.ad_code == 98106987, "kr/m2"] = 78186.4407
+
+virdi_augmented.loc[virdi_augmented.ad_code == 91039330, "Finalprice"] = 3100000.0
+virdi_augmented.loc[virdi_augmented.ad_code == 91039330, "Total price"] = 3100000.0 + 42107.0
+virdi_augmented.loc[virdi_augmented.ad_code == 91039330, "kr/m2"] = 48340.0
+
+virdi_augmented.loc[virdi_augmented.ad_code == 104814522, "Finalprice"] = 3045000.0
+virdi_augmented.loc[virdi_augmented.ad_code == 104814522, "Total price"] = 3045000.0 + 104160.0
+virdi_augmented.loc[virdi_augmented.ad_code == 104814522, "kr/m2"] = 54296.0
+
 
 virdi_augmented = virdi_augmented.assign(log_price_plus_comdebt = np.log(virdi_augmented["kr/m2"]))
 
@@ -267,15 +290,21 @@ virdi_augmented.has_terrace = virdi_augmented.has_terrace.astype(int)
 ## AUTOREGRESSIVE MODEL ##
 ##----------------------##
 
-"""
-for c in columns_to_count:
-    print(c)
-    print(virdi_augmented[c].value_counts())
-    print("-------------------")
-"""
-
 #START
 
+print "1"
+print virdi_augmented.shape
+
+print "Shuffling before WP but reseting index"
+
+virdi_augmented = virdi_augmented.sample(frac=1) # shuffle the dataset to do random training and test partition
+virdi_augmented = virdi_augmented.reset_index(drop=True)
+
+threshold = int(TRAINING_SET_SIZE * len(virdi_augmented))
+
+training = virdi_augmented[:threshold]
+
+not_enough_adjacent_houses_count = 0.0
 count = 0.0
 size = float(len(virdi_augmented.index))
 old_progress, new_progress = 0,0
@@ -287,13 +316,8 @@ for_loop_start = time.time()
 
 for index, r in virdi_augmented.iterrows():
 
-    comparable_matrix = virdi_augmented.loc[virdi_augmented.prom > 0]
-    #comparable_matrix = comparable_matrix.loc[abs(comparable_matrix.prom - r.prom) < 50]
-    #print comparable_matrix.shape
+    comparable_matrix = training.loc[training.prom > 0]
     comparable_matrix = comparable_matrix.loc[abs(comparable_matrix.coord_x - r.coord_x) + abs(comparable_matrix.coord_y - r.coord_y) < 0.01]
-
-    #if r.unit_type == "apartment":
-        #comparable_matrix = comparable_matrix.loc[comparable_matrix.bydel_code == r.bydel_code]
 
     comparable_matrix = comparable_matrix.loc[comparable_matrix.real_sold_date < r.real_sold_date] # comparable sale must have occured earlier in time
 
@@ -306,22 +330,17 @@ for index, r in virdi_augmented.iterrows():
     close_ids = []
     close_ids_comparable_matrix = []
 
-    while len(close_ids) < COMPARABLE_SET_SIZE + 1 and max_distance <= 0.025: # about 1500 meters
+    while len(close_ids) < AUTOREGRESSIVE_COMPARABLE_SET_SIZE + 1 and max_distance <= 0.025: # about 1500 meters
         close_points = (distance_matrix[-1] <= max_distance) & (distance_matrix[-1] > prev_max_distance)
-        close_points[-1] = False  # exclude itself - if present, always the last element
+        if max_distance == 0.000025:
+            close_points[-1] = False  # exclude itself - if present, always the last element
         close_ids_comparable_matrix += [comparable_matrix.iloc[i].name for i, close in enumerate(close_points) if close]
         close_ids += [i for i, close in enumerate(close_points) if close]
         prev_max_distance = max_distance
         max_distance *= 1.5
 
-    close_ids_comparable_matrix = close_ids_comparable_matrix[:COMPARABLE_SET_SIZE]
-    close_ids = close_ids[:COMPARABLE_SET_SIZE]
-
-    p_comparables = comparable_matrix.loc[close_ids_comparable_matrix].log_price_plus_comdebt
-
-    WP = p_comparables.mean()
-
-    #-------
+    close_ids_comparable_matrix = close_ids_comparable_matrix[:AUTOREGRESSIVE_COMPARABLE_SET_SIZE]
+    close_ids = close_ids[:AUTOREGRESSIVE_COMPARABLE_SET_SIZE]
 
     distances = distance_matrix[-1][[close_ids]]
     if len(distances) > 0:
@@ -335,7 +354,9 @@ for index, r in virdi_augmented.iterrows():
 
     WP = p_times_distance.sum() / distances.sum()
 
-    # -------
+    if len(close_ids) < 1:
+        WP = training.loc[training.bydel_code == r.bydel_code].log_price_plus_comdebt.mean()
+        not_enough_adjacent_houses_count += 1
 
     WP_list.append(WP)
 
@@ -350,30 +371,38 @@ for index, r in virdi_augmented.iterrows():
     # print count
     count += 1
 
+print "2"
+print virdi_augmented.shape
+
 print ""
 print "Done. " + str(round(time.time() - for_loop_start )) + " seconds elapsed."
-
 WP_column = pd.Series(WP_list)
 
-virdi_augmented = virdi_augmented.assign(WP = WP_column)
+print "Virdi augmented with autoregressive terms."
+print "If number of nearby houses lower than 1 (0):"
+print "Set autoregressive term to mean of all prices: " + str(virdi_augmented.log_price_plus_comdebt.mean())
+
+print "Number of houses with lower than 1 nearby: " + str(not_enough_adjacent_houses_count)
+print "which amounts to " + str(100*round(not_enough_adjacent_houses_count / len(virdi_augmented),4)) + "% of data set."
 
 print virdi_augmented.shape
+virdi_augmented = virdi_augmented.assign(WP = WP_column)
 virdi_augmented = virdi_augmented.dropna(subset = ["WP"])
 print virdi_augmented.shape
+print "SHOULD BE EQUAL"
 
-alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_augmented_with_WP.csv")
-
-
+alva_io.write_to_csv(virdi_augmented,"C:/Users/Tobias/data/virdi_augmented_with_WP.csv")
 
 # END
+
+print "3"
+print virdi_augmented.shape
 
 
 
 # ------------
 # Calculate repeat sales estimates
 # ------------
-
-virdi_augmented = virdi_augmented.sample(frac=1) # shuffle the dataset to do random training and test partition
 
 virdi_augmented = virdi_augmented.assign(real_sold_date = virdi_augmented.real_sold_date.map(lambda x: pd.to_datetime(x)))
 virdi_augmented = virdi_augmented.assign(prev_sale_date_1 = virdi_augmented.prev_sale_date_1.map(lambda x: pd.to_datetime(x)))
@@ -401,7 +430,7 @@ virdi_augmented = virdi_augmented.assign(prev_sale_quarter_3 = virdi_augmented.p
 print ""
 print "Caluclating repeat sales estimates"
 
-price_index_ssb = pd.read_csv("C:/Users/tobiasrp/data/price_index_oslo_ssb.csv", sep=";")
+price_index_ssb = pd.read_csv("C:/Users/Tobias/data/price_index_oslo_ssb.csv", sep=",")
 
 virdi_augmented = virdi_augmented.assign(real_sold_index = virdi_augmented.real_sold_quarter.map(lambda x: price_index_ssb.loc[price_index_ssb.quarter == x, "index"].iloc[0]))
 print "Repeat 1"
@@ -420,35 +449,42 @@ virdi_augmented = virdi_augmented.assign(prev_sale_estimate_2 = virdi_augmented.
 virdi_augmented = virdi_augmented.assign(prev_sale_estimate_3 = virdi_augmented.prev_sale_estimate_3.map(lambda x: int(x) if not np.isnan(x) else x))
 
 print "Done calculating repeat sales estimates"
-alva_io.write_to_csv(virdi_augmented,"C:/Users/tobiasrp/data/virdi_aug_title_prev_sale_estimates.csv")
 
-print ""
-print "Running regression"
-# ------------
-# Begin splitting and regressing
-# ------------
+print "4"
+print virdi_augmented.shape
 
-"""
-for c in virdi_augmented.columns:
-    print "-------"
-    print c
-    print virdi_augmented[c].isnull().sum()
-"""
+
+alva_io.write_to_csv(virdi_augmented,"C:/Users/Tobias/data/virdi_aug_title_prev_sale_estimates.csv")
 
 reg_start = time.time()
 
-threshold = int(TRAINING_SET_SIZE * len(virdi_augmented))
 training = virdi_augmented[:threshold]
 test = virdi_augmented[threshold:]
 
-alva_io.write_to_csv(training,"C:/Users/tobiasrp/data/training.csv")
-alva_io.write_to_csv(test,"C:/Users/tobiasrp/data/test.csv")
+print "Running K-means to construct new districts:"
+training = kmeans.add_kmeans_districts(training, KMEANS_K)
+
+print "Predicting districts on test set using K-NN. K = " + str(KNN_K) + "."
+test = kmeans.predict_kmeans_districts(test, training, KNN_K)
+
+alva_io.write_to_csv(training,"C:/Users/" + USER_STRING + "/data/training.csv")
+alva_io.write_to_csv(test,"C:/Users/" + USER_STRING + "/data/test.csv")
+
+
+# ------------
+# Begin regressing
+# ------------
+
+print ""
+print "Running regression"
+
+reg_start = time.time()
 
 y,X = dmatrices('log_price_plus_comdebt ~ C(size_group,Treatment(reference="40 -- 49")) + \
-C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(bydel_code,Treatment(reference="bfr")) + \
+C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(kmeans_cluster) + \
 C(unit_type,Treatment(reference="house")) + needs_refurbishment + year_group + has_garden + \
 is_borettslag + is_penthouse + has_terrace + common_cost_is_high + has_two_bedrooms + \
-has_three_bedrooms + WP', data=training, return_type = "dataframe") # excluding build year until videre
+has_three_bedrooms + WP', data=training, return_type = "dataframe")
 
 
 #describe model
@@ -481,7 +517,7 @@ print(res.HC0_se)
 """
 
 y_test,X_test = dmatrices('log_price_plus_comdebt ~ C(size_group,Treatment(reference="40 -- 49")) + \
-C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(bydel_code,Treatment(reference="bfr")) + \
+C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(kmeans_cluster_prediction) + \
 C(unit_type,Treatment(reference="house")) + needs_refurbishment + year_group + has_garden + \
 is_borettslag + is_penthouse + has_terrace + common_cost_is_high + has_two_bedrooms + \
 has_three_bedrooms + WP', data=test, return_type = "dataframe")
@@ -507,6 +543,7 @@ fitted_training_values_natural = (np.exp(res.fittedvalues) * training.prom).asty
 training = training.assign(fitted_values_nat = fitted_training_values_natural)
 
 print "Constructing basic estimates for training set"
+
 ### Remove repeated estimates if it deviates too much from fitted value (training set)
 
 prev_sale_price_1_reasonable = (abs(training.prev_sale_estimate_1 - fitted_training_values_natural) / fitted_training_values_natural) < 0.25 ### using method from previous model
@@ -556,15 +593,13 @@ training = training.assign(basic_estimate_log = basic_estimate_log)
 training = training.assign(basic_estimate_residual = basic_estimate_residual)
 
 training = training.assign(basic_estimate_deviation = training["Total price"] - training.basic_estimate)
-alva_io.write_to_csv(training, "C:/Users/tobiasrp/data/basic_estimate_residuals.csv")
+alva_io.write_to_csv(training, "C:/Users/" + USER_STRING + "/data/basic_estimate_residuals.csv")
 
 print "Constructing basic estimates for test set"
-
 
 # ------------
 # Construct basic estimates for test set
 # ------------
-
 
 test = test.assign(reg_prediction = reg_predictions) # add regression prediction (y_reg) to test set
 test = test.assign(reg_prediction_nat = (np.exp(reg_predictions) * test.prom).astype(int))
@@ -648,7 +683,8 @@ for index, r in test.iterrows():
 
     while len(close_ids) < COMPARABLE_SET_SIZE and max_distance <= 0.0025:
         close_points = (distance_matrix[-1] <= max_distance) & (distance_matrix[-1] > prev_max_distance)
-        close_points[-1] = False # exclude itself
+        if max_distance == 0.000025:
+            close_points[-1] = False # exclude itself
         close_ids += [district_matrix.iloc[index].name for index, close in enumerate(close_points) if close]
         prev_max_distance = max_distance
         max_distance *= 1.1
@@ -683,10 +719,8 @@ print ""
 print "Done mapping distances. " + str(round(time.time() - mapping_start)) + " seconds elapsed."
 resid_median_column = pd.Series(resid_median_list)
 
-#test = test.reset_index()
 
-
-test = test.assign(residual_adjusted_basic_estimate = test.basic_estimate_log + resid_median_column*2)
+test = test.assign(residual_adjusted_basic_estimate = test.basic_estimate_log + resid_median_column)
 test = test.assign(residual_adjusted_basic_estimate = test.residual_adjusted_basic_estimate.fillna(test.basic_estimate_log))
 
 test = test.assign(residual_adjusted_basic_estimate_nat = (test.prom * np.exp(test.residual_adjusted_basic_estimate)).astype(int))
@@ -695,8 +729,8 @@ test = test.assign(resid_median_column = resid_median_column)
 test = test.assign(pre_resid_adjustment_residual = test.log_price_plus_comdebt - test.basic_estimate_log)
 test = test.assign(post_resid_adjustment_residual = test.log_price_plus_comdebt - test.residual_adjusted_basic_estimate)
 
-alva_io.write_to_csv(test,"C:/Users/tobiasrp/data/residual_adjusted_estimates.csv")
-alva_io.write_to_csv(close_resids_df,"C:/Users/tobiasrp/data/close_resids_df.csv")
+alva_io.write_to_csv(test,"C:/Users/" + USER_STRING + "/data/residual_adjusted_estimates.csv")
+alva_io.write_to_csv(close_resids_df,"C:/Users/" + USER_STRING + "/data/close_resids_df.csv")
 
 
 # END COMPARABLE MODEL
@@ -710,7 +744,6 @@ score = score.assign(true_value = test["Total price"])
 score = score.assign(reg_prediction = test.reg_prediction_nat)
 score = score.assign(reg_deviation = score.true_value - score.reg_prediction)
 score = score.assign(reg_deviation_percentage = abs(score.reg_deviation / score.true_value))
-
 score = score.assign(rep_1_prediction = test.prev_sale_estimate_1)
 score = score.assign(rep_2_prediction = test.prev_sale_estimate_2)
 score = score.assign(rep_3_prediction = test.prev_sale_estimate_3)
@@ -746,10 +779,5 @@ print score.rep_3_deviation_percentage.quantile([.25, .5, .75])
 print "Basic-estimat, medianfeil:",100*round(score.basic_deviation_percentage.median(),5),"%"
 print score.basic_deviation_percentage.quantile([.25, .5, .75])
 
-
 print "Comparable-estimat, medianfeil:",100*round(score.comparable_deviation_percentage.median(),5),"%"
 print score.comparable_deviation_percentage.quantile([.25, .5, .75])
-
-
-# fig = sm.graphics.plot_partregress("sqmeter_price","prom",["sold_month","ordinal_sold_date","bydel"],data=subset, obs_labels=False)
-# fig.show()

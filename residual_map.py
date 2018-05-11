@@ -1,4 +1,4 @@
-db_link = 'C:/Users/tobiasrp/data/residual_adjusted_estimates.csv'
+db_link = 'C:/Users/Tobias/data/residual_adjusted_estimates.csv'
 #shp_link = 'C:/Users/tobiasrp/data/shape_test.shp'
 
 from pylab import *
@@ -8,13 +8,15 @@ import matplotlib.pyplot as plt
 from scipy.spatial.distance import pdist, squareform
 
 z = read_csv(db_link)
+print z.head()
+z = z[["basic_estimate_residual","coord_x","coord_y"]]
 
-z = z[["post_resid_adjustment_residual","coord_x","coord_y"]]
+
 #post_resid_adjustment_residual
 #pre_resid_adjustment_residual
 
 print z.shape
-z = z[np.abs(z.post_resid_adjustment_residual - z.post_resid_adjustment_residual.mean()) < (3*z.post_resid_adjustment_residual.std())]
+z = z[np.abs(z.basic_estimate_residual - z.basic_estimate_residual.mean()) < (3*z.basic_estimate_residual.std())]
 print z.shape
 
 z = np.array( z, dtype=np.float )
