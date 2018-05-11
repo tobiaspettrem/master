@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
+
 from scipy.spatial.distance import pdist, squareform
 import time
+import moran
 import alva_io, address
 import pandas as pd
 import numpy as np
@@ -9,13 +11,15 @@ import calendar
 from patsy import dmatrices
 import statsmodels.api as sm
 import kmeans
+import pysal
 import matplotlib.pyplot as plt
 
-USER_STRING = "Tobias"
+USER_STRING = "tobiasrp"
 SOLD_TO_OFFICIAL_DIFF = 55
 TRAINING_SET_SIZE = 0.8
 COMPARABLE_SET_SIZE = 10
 AUTOREGRESSIVE_COMPARABLE_SET_SIZE = 10
+MORANS_SET_SIZE = 10
 RUN_LAD = True
 REG_SHARE = 0.5
 KMEANS_K = 15
@@ -52,10 +56,9 @@ if raw_input("Enter to run without new initialization") != "":
     pd.DataFrame.to_csv(virdi_augmented, "C:/Users/" + USER_STRING + "/data/virdi_augmented.csv")
     #after these operations, scrape FINN for additional data to create virdi augmented with title
 
-else:
-    virdi_augmented = pd.read_csv("C:/Users/" + USER_STRING + "/data/virdi_augmented_with_title.csv",index_col=0)
-
 if raw_input("Enter to run without mapping previous sales") != "":
+
+    virdi_augmented = pd.read_csv("C:/Users/" + USER_STRING + "/data/virdi_augmented_with_title.csv",index_col=0)
 
     #----------- CREATE NEW COLUMN real_sold_date -----------#
 
@@ -243,6 +246,7 @@ virdi_augmented = virdi_augmented.assign(needs_refurbishment = 0)
 virdi_augmented.needs_refurbishment = virdi_augmented.title_lower.str.contains("oppussingsobjekt")
 virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | virdi_augmented.title_lower.str.contains("oppgraderingsbehov")
 virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | virdi_augmented.title_lower.str.contains("oppussingsbehov")
+virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment | virdi_augmented.title_lower.str.contains("modernisering")
 virdi_augmented.needs_refurbishment = virdi_augmented.needs_refurbishment.astype(int)
 
 #----------- CREATE NEW COLUMN year_group -----------#
@@ -295,8 +299,6 @@ virdi_augmented.has_terrace = virdi_augmented.has_terrace.astype(int)
 print "1"
 print virdi_augmented.shape
 
-print "Shuffling before WP but reseting index"
-
 virdi_augmented = virdi_augmented.sample(frac=1) # shuffle the dataset to do random training and test partition
 virdi_augmented = virdi_augmented.reset_index(drop=True)
 
@@ -348,6 +350,7 @@ for index, r in virdi_augmented.iterrows():
             distances[distances == 0] = 0.000025 # value is irrelevant
         else:
             distances[distances == 0] = distances[distances > 0].min()
+
     distances = 1 / distances
 
     p_times_distance = distances * comparable_matrix.loc[close_ids_comparable_matrix].log_price_plus_comdebt
@@ -379,25 +382,18 @@ print "Done. " + str(round(time.time() - for_loop_start )) + " seconds elapsed."
 WP_column = pd.Series(WP_list)
 
 print "Virdi augmented with autoregressive terms."
-print "If number of nearby houses lower than 1 (0):"
+print "If number of nearby houses lower than 1:"
 print "Set autoregressive term to mean of all prices: " + str(virdi_augmented.log_price_plus_comdebt.mean())
 
 print "Number of houses with lower than 1 nearby: " + str(not_enough_adjacent_houses_count)
 print "which amounts to " + str(100*round(not_enough_adjacent_houses_count / len(virdi_augmented),4)) + "% of data set."
 
-print virdi_augmented.shape
 virdi_augmented = virdi_augmented.assign(WP = WP_column)
 virdi_augmented = virdi_augmented.dropna(subset = ["WP"])
-print virdi_augmented.shape
-print "SHOULD BE EQUAL"
 
-alva_io.write_to_csv(virdi_augmented,"C:/Users/Tobias/data/virdi_augmented_with_WP.csv")
+alva_io.write_to_csv(virdi_augmented,"C:/Users/" + USER_STRING + "/data/virdi_augmented_with_WP.csv")
 
 # END
-
-print "3"
-print virdi_augmented.shape
-
 
 
 # ------------
@@ -430,7 +426,7 @@ virdi_augmented = virdi_augmented.assign(prev_sale_quarter_3 = virdi_augmented.p
 print ""
 print "Caluclating repeat sales estimates"
 
-price_index_ssb = pd.read_csv("C:/Users/Tobias/data/price_index_oslo_ssb.csv", sep=",")
+price_index_ssb = pd.read_csv("C:/Users/" + USER_STRING + "/data/price_index_oslo_ssb.csv", sep=";")
 
 virdi_augmented = virdi_augmented.assign(real_sold_index = virdi_augmented.real_sold_quarter.map(lambda x: price_index_ssb.loc[price_index_ssb.quarter == x, "index"].iloc[0]))
 print "Repeat 1"
@@ -454,7 +450,7 @@ print "4"
 print virdi_augmented.shape
 
 
-alva_io.write_to_csv(virdi_augmented,"C:/Users/Tobias/data/virdi_aug_title_prev_sale_estimates.csv")
+alva_io.write_to_csv(virdi_augmented,"C:/Users/" + USER_STRING + "/data/virdi_aug_title_prev_sale_estimates.csv")
 
 reg_start = time.time()
 
@@ -603,6 +599,7 @@ print "Constructing basic estimates for test set"
 
 test = test.assign(reg_prediction = reg_predictions) # add regression prediction (y_reg) to test set
 test = test.assign(reg_prediction_nat = (np.exp(reg_predictions) * test.prom).astype(int))
+test = test.assign(regression_residual = test.log_price_plus_comdebt - reg_predictions)
 
 ### Remove repeated estimates if it deviates too much from fitted value (test set)
 
@@ -732,8 +729,9 @@ test = test.assign(post_resid_adjustment_residual = test.log_price_plus_comdebt 
 alva_io.write_to_csv(test,"C:/Users/" + USER_STRING + "/data/residual_adjusted_estimates.csv")
 alva_io.write_to_csv(close_resids_df,"C:/Users/" + USER_STRING + "/data/close_resids_df.csv")
 
-
 # END COMPARABLE MODEL
+
+
 
 
 score = pd.DataFrame()
@@ -766,6 +764,10 @@ print ""
 print " -------- Test Results -------- "
 print ""
 print "Medianfeil regresjon:",100*round(score.reg_deviation_percentage.median(),5),"%"
+moran, geary = moran.i(test, 100, "regression_residual")
+print ""
+print "Moran's I: " + str(round(moran, 4)) + " and Geary's C: " + str(round(geary, 4))
+#regression_residual
 print ""
 print "Gjennomsnittsfeil regresjon:",100*round(score.reg_deviation_percentage.mean(),5),"%"
 print score.reg_deviation_percentage.quantile([.25, .5, .75])
@@ -778,6 +780,8 @@ print "Repeat 3, medianfeil:",100*round(score.rep_3_deviation_percentage.median(
 print score.rep_3_deviation_percentage.quantile([.25, .5, .75])
 print "Basic-estimat, medianfeil:",100*round(score.basic_deviation_percentage.median(),5),"%"
 print score.basic_deviation_percentage.quantile([.25, .5, .75])
+#basic_estimate_residual
 
 print "Comparable-estimat, medianfeil:",100*round(score.comparable_deviation_percentage.median(),5),"%"
 print score.comparable_deviation_percentage.quantile([.25, .5, .75])
+#post_resid_adjustment_residual
