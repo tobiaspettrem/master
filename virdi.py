@@ -11,6 +11,7 @@ import calendar
 from patsy import dmatrices
 import statsmodels.api as sm
 import kmeans
+import kmeans_district_map
 import pysal
 import matplotlib.pyplot as plt
 
@@ -462,6 +463,9 @@ training = kmeans.add_kmeans_districts(training, KMEANS_K)
 
 print "Predicting districts on test set using K-NN. K = " + str(KNN_K) + "."
 test = kmeans.predict_kmeans_districts(test, training, KNN_K)
+
+kmeans_district_map.plot_districts(list(set(training.bydel_code)),"bydel_code", training)
+kmeans_district_map.plot_districts(list(set(training.kmeans_clustering)),"kmeans_clustering", training)
 
 alva_io.write_to_csv(training,"C:/Users/" + USER_STRING + "/data/training.csv")
 alva_io.write_to_csv(test,"C:/Users/" + USER_STRING + "/data/test.csv")

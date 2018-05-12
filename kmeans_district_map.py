@@ -1,95 +1,32 @@
-db_link = 'C:/Users/Tobias/data/virdi_aug_title_prev_sale_estimates.csv'
 
 from pylab import *
 import matplotlib.colors as colors
 import matplotlib.cm as cmx
 import numpy as np
-from pandas import DataFrame, Series, read_csv
+import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import pdist, squareform
 import random
 
-virdi = read_csv(db_link)
-virdi = virdi[["kr/m2", "coord_x", "coord_y", "bydel_code"]]
 
-X_MAX = virdi.coord_x.max()
-X_MIN = virdi.coord_x.min()
-Y_MAX = virdi.coord_y.max()
-Y_MIN = virdi.coord_y.min()
-SQMPRICE_MAX = virdi['kr/m2'].max()
-SQMPRICE_MIN = virdi['kr/m2'].min()
+def plot_districts(districts, district_column_name, data_set): #districts is a set of unique districts
 
-def init_kmeans():
-    x = random.uniform(X_MIN, X_MAX)
-    y = random.uniform(Y_MIN, Y_MAX)
-    sqmprice = random.uniform(SQMPRICE_MIN, SQMPRICE_MAX)
+    random.shuffle(districts)
 
-    return (x, y, sqmprice)
+    hot = plt.get_cmap('Paired')
+    cNorm  = colors.Normalize(vmin=0, vmax=len(districts))
+    scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=hot)
+    plt.ion()
 
-def kmeans(df, k):
-    centroids = [init_kmeans() for i in range(k)]
+    # Plot each species
+    for i in range(len(districts)):
+        index = pd.Series(data_set[[district_column_name]] == districts[i])
+        plt.scatter(data_set.coord_x[index], data_set.coord_y[index], s=10, color=scalarMap.to_rgba(i), label=districts[i])
 
+    plt.draw()
+    plt.pause(0.2)
+    print "Updating plot"
 
-kmeans(virdi,20)
-
-districts = list(set(virdi.bydel_code))
-
-hot = plt.get_cmap('Paired')
-cNorm  = colors.Normalize(vmin=0, vmax=len(districts))
-scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=hot)
-plt.ion()
-
-# Plot each species
-for i in range(len(districts)):
-    indx = virdi.bydel_code == districts[i]
-    plt.scatter(virdi.coord_x[indx], virdi.coord_y[indx], s=50, color=scalarMap.to_rgba(i), label=districts[i])
-
-plt.draw()
-plt.pause(0.2)
-print "Updating plot"
-
-random.shuffle(districts)
-
-for i in range(len(districts)):
-    indx = virdi.bydel_code == districts[i]
-    plt.scatter(virdi.coord_x[indx], virdi.coord_y[indx], s=50, color=scalarMap.to_rgba(i), label=districts[i])
-
-plt.draw()
-plt.pause(0.2)
-print "Updating plot"
-
-random.shuffle(districts)
-
-for i in range(len(districts)):
-    indx = virdi.bydel_code == districts[i]
-    plt.scatter(virdi.coord_x[indx], virdi.coord_y[indx], s=50, color=scalarMap.to_rgba(i), label=districts[i])
-plt.draw()
-plt.pause(0.2)
-print "Updating plot"
-
-random.shuffle(districts)
-
-for i in range(len(districts)):
-    indx = virdi.bydel_code == districts[i]
-    plt.scatter(virdi.coord_x[indx], virdi.coord_y[indx], s=50, color=scalarMap.to_rgba(i), label=districts[i])
-plt.draw()
-plt.pause(0.2)
-print "Updating plot"
-
-random.shuffle(districts)
-
-for i in range(len(districts)):
-    indx = virdi.bydel_code == districts[i]
-    plt.scatter(virdi.coord_x[indx], virdi.coord_y[indx], s=50, color=scalarMap.to_rgba(i), label=districts[i])
-plt.draw()
-plt.pause(0.2)
-print "Updating plot"
-
-random.shuffle(districts)
-
-for i in range(len(districts)):
-    indx = virdi.bydel_code == districts[i]
-    plt.scatter(virdi.coord_x[indx], virdi.coord_y[indx], s=50, color=scalarMap.to_rgba(i), label=districts[i])
 
 """
 fig, ax = subplot()
