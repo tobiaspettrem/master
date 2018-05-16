@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
-
 from scipy.spatial.distance import pdist, squareform
 import time
-import moran
+import spatial_measures
 import alva_io, address
 import pandas as pd
 import numpy as np
@@ -18,15 +17,18 @@ import matplotlib.pyplot as plt
 USER_STRING = "tobiasrp"
 SOLD_TO_OFFICIAL_DIFF = 55
 TRAINING_SET_SIZE = 0.8
-COMPARABLE_SET_SIZE = 10
-AUTOREGRESSIVE_COMPARABLE_SET_SIZE = 10
-MORANS_SET_SIZE = 10
+COMPARABLE_SET_SIZE = 15
+AUTOREGRESSIVE_COMPARABLE_SET_SIZE = 15
+MORANS_SET_SIZE = 15
 RUN_LAD = True
 REG_SHARE = 0.5
-KMEANS_K = 15
+KMEANS_K = 14
 KNN_K = 5
 
-print "AUTOREGRESSIVE_SIZE: " + str(AUTOREGRESSIVE_COMPARABLE_SET_SIZE)
+if RUN_LAD:
+    print "Running LAD with basic model regression share: " + str(REG_SHARE * 100) + "%."
+else:
+    print "Running OLS with basic model regression share: " + str(REG_SHARE * 100) + "%."
 
 def get_quarter(date):
     if pd.isnull(date):
@@ -166,10 +168,29 @@ else:
     virdi_augmented = virdi_augmented.assign(real_sold_date = pd.to_datetime(virdi_augmented["real_sold_date"],format="%Y-%m-%d"))
 
 
-if RUN_LAD:
-    print "Running LAD with basic model regression share: " + str(REG_SHARE * 100) + "%."
+
+wp_bool = ""
+
+while wp_bool not in ["y","n"]:
+    wp_bool = raw_input("Run autoregressive? y or n: ")
+
+if wp_bool == "y":
+    wp_bool = True
 else:
-    print "Running OLS with basic model regression share: " + str(REG_SHARE * 100) + "%."
+    wp_bool = False
+
+kmeans_bool = ""
+while kmeans_bool not in ["y","n"]:
+    kmeans_bool = raw_input("Run k-means to generate districts? y or n: ")
+
+if kmeans_bool == "y":
+    kmeans_bool = True
+    KMEANS_K = int(raw_input("K: "))
+    print "Running K-means with k = " + str(KMEANS_K)
+else:
+    kmeans_bool = False
+
+
 
 # virdi = virdi.loc[virdi["kr/m2"] > ] # cutting on sqm price
 
@@ -216,6 +237,7 @@ virdi_augmented = virdi_augmented.assign(sold_month = virdi_augmented.real_sold_
 virdi_augmented = virdi_augmented.assign(sold_year = virdi_augmented.real_sold_date.map(lambda x: x.year))
 virdi_augmented = virdi_augmented.assign(sold_month = virdi_augmented.sold_month.apply(lambda x: calendar.month_abbr[x])) #text instead of int
 virdi_augmented = virdi_augmented.assign(sold_month_and_year = virdi_augmented.sold_month + "_" + virdi_augmented.sold_year.map(str))
+
 
 #delete sold_date and official_date now that real_sold_date covers both
 del virdi_augmented["sold_date"]
@@ -297,9 +319,6 @@ virdi_augmented.has_terrace = virdi_augmented.has_terrace.astype(int)
 
 #START
 
-print "1"
-print virdi_augmented.shape
-
 virdi_augmented = virdi_augmented.sample(frac=1) # shuffle the dataset to do random training and test partition
 virdi_augmented = virdi_augmented.reset_index(drop=True)
 
@@ -307,95 +326,100 @@ threshold = int(TRAINING_SET_SIZE * len(virdi_augmented))
 
 training = virdi_augmented[:threshold]
 
-not_enough_adjacent_houses_count = 0.0
-count = 0.0
-size = float(len(virdi_augmented.index))
-old_progress, new_progress = 0,0
-WP_list = []
 
-print "Running autoregressive model. Mapping distances:"
-print "0%",
-for_loop_start = time.time()
+if wp_bool:
 
-for index, r in virdi_augmented.iterrows():
+    # BEGIN AUTOREGRESSIVE
 
-    comparable_matrix = training.loc[training.prom > 0]
-    comparable_matrix = comparable_matrix.loc[abs(comparable_matrix.coord_x - r.coord_x) + abs(comparable_matrix.coord_y - r.coord_y) < 0.01]
+    not_enough_adjacent_houses_count = 0.0
+    count = 0.0
+    size = float(len(virdi_augmented.index))
+    old_progress, new_progress = 0,0
+    WP_list = []
 
-    comparable_matrix = comparable_matrix.loc[comparable_matrix.real_sold_date < r.real_sold_date] # comparable sale must have occured earlier in time
+    print ""
+    print "Running autoregressive model with size " + str(AUTOREGRESSIVE_COMPARABLE_SET_SIZE) + ". Mapping distances:"
+    print "0%",
+    for_loop_start = time.time()
 
-    comparable_matrix = comparable_matrix.append(r)
+    for index, r in virdi_augmented.iterrows():
 
-    distance_matrix = squareform(pdist(comparable_matrix[["coord_x", "coord_y"]]))
+        comparable_matrix = training.loc[training.prom > 0]
+        comparable_matrix = comparable_matrix.loc[abs(comparable_matrix.coord_x - r.coord_x) + abs(comparable_matrix.coord_y - r.coord_y) < 0.01]
 
-    max_distance = 0.000025 # about 1.5 meters
-    prev_max_distance = -1
-    close_ids = []
-    close_ids_comparable_matrix = []
+        comparable_matrix = comparable_matrix.loc[comparable_matrix.real_sold_date < r.real_sold_date] # comparable sale must have occured earlier in time
 
-    while len(close_ids) < AUTOREGRESSIVE_COMPARABLE_SET_SIZE + 1 and max_distance <= 0.025: # about 1500 meters
-        close_points = (distance_matrix[-1] <= max_distance) & (distance_matrix[-1] > prev_max_distance)
-        if max_distance == 0.000025:
-            close_points[-1] = False  # exclude itself - if present, always the last element
-        close_ids_comparable_matrix += [comparable_matrix.iloc[i].name for i, close in enumerate(close_points) if close]
-        close_ids += [i for i, close in enumerate(close_points) if close]
-        prev_max_distance = max_distance
-        max_distance *= 1.5
+        comparable_matrix = comparable_matrix.append(r)
 
-    close_ids_comparable_matrix = close_ids_comparable_matrix[:AUTOREGRESSIVE_COMPARABLE_SET_SIZE]
-    close_ids = close_ids[:AUTOREGRESSIVE_COMPARABLE_SET_SIZE]
+        distance_matrix = squareform(pdist(comparable_matrix[["coord_x", "coord_y"]]))
 
-    distances = distance_matrix[-1][[close_ids]]
-    if len(distances) > 0:
-        if distances.max() == 0:
-            distances[distances == 0] = 0.000025 # value is irrelevant
-        else:
-            distances[distances == 0] = distances[distances > 0].min()
+        max_distance = 0.000025 # about 1.5 meters
+        prev_max_distance = -1
+        close_ids = []
+        close_ids_comparable_matrix = []
 
-    distances = 1 / distances
+        while len(close_ids) < AUTOREGRESSIVE_COMPARABLE_SET_SIZE + 1 and max_distance <= 0.025: # about 1500 meters
+            close_points = (distance_matrix[-1] <= max_distance) & (distance_matrix[-1] > prev_max_distance)
+            if max_distance == 0.000025:
+                close_points[-1] = False  # exclude itself - if present, always the last element
+            close_ids_comparable_matrix += [comparable_matrix.iloc[i].name for i, close in enumerate(close_points) if close]
+            close_ids += [i for i, close in enumerate(close_points) if close]
+            prev_max_distance = max_distance
+            max_distance *= 1.5
 
-    p_times_distance = distances * comparable_matrix.loc[close_ids_comparable_matrix].log_price_plus_comdebt
+        close_ids_comparable_matrix = close_ids_comparable_matrix[:AUTOREGRESSIVE_COMPARABLE_SET_SIZE]
+        close_ids = close_ids[:AUTOREGRESSIVE_COMPARABLE_SET_SIZE]
 
-    WP = p_times_distance.sum() / distances.sum()
+        distances = distance_matrix[-1][[close_ids]]
+        if len(distances) > 0:
+            if distances.max() == 0:
+                distances[distances == 0] = 0.000025 # value is irrelevant
+            else:
+                distances[distances == 0] = distances[distances > 0].min()
 
-    if len(close_ids) < 1:
-        WP = training.loc[training.bydel_code == r.bydel_code].log_price_plus_comdebt.mean()
-        not_enough_adjacent_houses_count += 1
+        distances = 1 / distances
 
-    WP_list.append(WP)
+        p_times_distance = distances * comparable_matrix.loc[close_ids_comparable_matrix].log_price_plus_comdebt
 
-    new_progress = round(count / size,2)
-    if old_progress != new_progress:
-        if (int(100*new_progress)) % 10 == 0:
-            print str(int(100*new_progress)) + "%",
-        else:
-            print "|",
-    old_progress = new_progress
+        WP = p_times_distance.sum() / distances.sum()
 
-    # print count
-    count += 1
+        if len(close_ids) < 1:
+            WP = training.loc[training.bydel_code == r.bydel_code].log_price_plus_comdebt.mean()
+            not_enough_adjacent_houses_count += 1
 
-print "2"
-print virdi_augmented.shape
+        WP_list.append(WP)
 
-print ""
-print "Done. " + str(round(time.time() - for_loop_start )) + " seconds elapsed."
-WP_column = pd.Series(WP_list)
+        new_progress = round(count / size,2)
+        if old_progress != new_progress:
+            if (int(100*new_progress)) % 10 == 0:
+                print str(int(100*new_progress)) + "%",
+            else:
+                print "|",
+        old_progress = new_progress
 
-print "Virdi augmented with autoregressive terms."
-print "If number of nearby houses lower than 1:"
-print "Set autoregressive term to mean of all prices: " + str(virdi_augmented.log_price_plus_comdebt.mean())
+        # print count
+        count += 1
 
-print "Number of houses with lower than 1 nearby: " + str(not_enough_adjacent_houses_count)
-print "which amounts to " + str(100*round(not_enough_adjacent_houses_count / len(virdi_augmented),4)) + "% of data set."
+    print "2"
+    print virdi_augmented.shape
 
-virdi_augmented = virdi_augmented.assign(WP = WP_column)
-virdi_augmented = virdi_augmented.dropna(subset = ["WP"])
+    print ""
+    print "Done. " + str(round(time.time() - for_loop_start )) + " seconds elapsed."
+    WP_column = pd.Series(WP_list)
 
-alva_io.write_to_csv(virdi_augmented,"C:/Users/" + USER_STRING + "/data/virdi_augmented_with_WP.csv")
+    print "Virdi augmented with autoregressive terms."
+    print "If number of nearby houses lower than 1:"
+    print "Set autoregressive term to mean of all prices: " + str(virdi_augmented.log_price_plus_comdebt.mean())
 
-# END
+    print "Number of houses with lower than 1 nearby: " + str(not_enough_adjacent_houses_count)
+    print "which amounts to " + str(100*round(not_enough_adjacent_houses_count / len(virdi_augmented),4)) + "% of data set."
 
+    virdi_augmented = virdi_augmented.assign(WP = WP_column)
+    virdi_augmented = virdi_augmented.dropna(subset = ["WP"])
+
+    alva_io.write_to_csv(virdi_augmented,"C:/Users/" + USER_STRING + "/data/virdi_augmented_with_WP.csv")
+
+    # END AUTOREGRESSIVE
 
 # ------------
 # Calculate repeat sales estimates
@@ -447,7 +471,7 @@ virdi_augmented = virdi_augmented.assign(prev_sale_estimate_3 = virdi_augmented.
 
 print "Done calculating repeat sales estimates"
 
-print "4"
+print "Data set shape before regression:"
 print virdi_augmented.shape
 
 
@@ -458,18 +482,29 @@ reg_start = time.time()
 training = virdi_augmented[:threshold]
 test = virdi_augmented[threshold:]
 
-print "Running K-means to construct new districts:"
-training = kmeans.add_kmeans_districts(training, KMEANS_K)
+district_string_train = 'bydel_code,Treatment(reference="bfr")'
+district_string_test = 'bydel_code,Treatment(reference="bfr")'
 
-print "Predicting districts on test set using K-NN. K = " + str(KNN_K) + "."
-test = kmeans.predict_kmeans_districts(test, training, KNN_K)
+if kmeans_bool:
+    print "Running K-means to construct new districts:"
+    training = kmeans.add_kmeans_districts(training, KMEANS_K)
 
-kmeans_district_map.plot_districts(list(set(training.bydel_code)),"bydel_code", training)
-kmeans_district_map.plot_districts(list(set(training.kmeans_clustering)),"kmeans_clustering", training)
+    print "Predicting districts on test set using K-NN. K = " + str(KNN_K) + "."
+    test = kmeans.predict_kmeans_districts(test, training, KNN_K)
+
+    kmeans_district_map.plot_districts(training, "bydel_code")
+    kmeans_district_map.plot_districts(training, "kmeans_cluster")
+
+    district_string_train = "kmeans_cluster"
+    district_string_test = "kmeans_cluster_prediction"
 
 alva_io.write_to_csv(training,"C:/Users/" + USER_STRING + "/data/training.csv")
 alva_io.write_to_csv(test,"C:/Users/" + USER_STRING + "/data/test.csv")
 
+wp_string = ""
+
+if wp_bool:
+    wp_string = " + WP"
 
 # ------------
 # Begin regressing
@@ -481,10 +516,10 @@ print "Running regression"
 reg_start = time.time()
 
 y,X = dmatrices('log_price_plus_comdebt ~ C(size_group,Treatment(reference="40 -- 49")) + \
-C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(kmeans_cluster) + \
+C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(' + district_string_train +') + \
 C(unit_type,Treatment(reference="house")) + needs_refurbishment + year_group + has_garden + \
 is_borettslag + is_penthouse + has_terrace + common_cost_is_high + has_two_bedrooms + \
-has_three_bedrooms + WP', data=training, return_type = "dataframe")
+has_three_bedrooms' + wp_string, data=training, return_type = "dataframe")
 
 
 #describe model
@@ -506,28 +541,25 @@ else:
     res = mod.fit()
 
 #magic
-print(res.summary())
+print res.summary()
 
 """
 ### ROBUST STANDARD ERROR
-print("-----------------")
+print ""
 print("Robust standard error")
-print()
 print(res.HC0_se)
 """
 
 y_test,X_test = dmatrices('log_price_plus_comdebt ~ C(size_group,Treatment(reference="40 -- 49")) + \
-C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(kmeans_cluster_prediction) + \
+C(sold_month_and_year,Treatment(reference="Apr_2017")) + C(' + district_string_test +') + \
 C(unit_type,Treatment(reference="house")) + needs_refurbishment + year_group + has_garden + \
 is_borettslag + is_penthouse + has_terrace + common_cost_is_high + has_two_bedrooms + \
-has_three_bedrooms + WP', data=test, return_type = "dataframe")
+has_three_bedrooms' + wp_string, data=test, return_type = "dataframe")
 
 reg_predictions = res.predict(X_test)
 
 print "Regression done"
 print str(round(time.time() - reg_start,4)) + "seconds elapsed"
-print
-print ""
 # ------------
 # Regression done
 # ------------
@@ -541,7 +573,7 @@ training = training.assign(regression_residuals = res.resid)
 training = training.assign(fitted_values = res.fittedvalues)
 fitted_training_values_natural = (np.exp(res.fittedvalues) * training.prom).astype(int)
 training = training.assign(fitted_values_nat = fitted_training_values_natural)
-
+print ""
 print "Constructing basic estimates for training set"
 
 ### Remove repeated estimates if it deviates too much from fitted value (training set)
@@ -595,6 +627,7 @@ training = training.assign(basic_estimate_residual = basic_estimate_residual)
 training = training.assign(basic_estimate_deviation = training["Total price"] - training.basic_estimate)
 alva_io.write_to_csv(training, "C:/Users/" + USER_STRING + "/data/basic_estimate_residuals.csv")
 
+print ""
 print "Constructing basic estimates for test set"
 
 # ------------
@@ -604,6 +637,10 @@ print "Constructing basic estimates for test set"
 test = test.assign(reg_prediction = reg_predictions) # add regression prediction (y_reg) to test set
 test = test.assign(reg_prediction_nat = (np.exp(reg_predictions) * test.prom).astype(int))
 test = test.assign(regression_residual = test.log_price_plus_comdebt - reg_predictions)
+
+
+#print test.sort_values(by = ["regression_residual"], ascending=True).head(20)
+
 
 ### Remove repeated estimates if it deviates too much from fitted value (test set)
 
@@ -671,7 +708,11 @@ close_resids_df = pd.DataFrame()
 mapping_start = time.time()
 
 for index, r in test.iterrows():
-    district_matrix = training.loc[training.bydel_code == r.bydel_code] #HUSK Å NOTERE DETTE ET STED
+    if kmeans_bool:
+        district_matrix = training.loc[training.kmeans_cluster == r.kmeans_cluster_prediction] #HUSK Å NOTERE DETTE ET STED
+    else:
+        district_matrix = training.loc[training.bydel_code == r.bydel_code] #HUSK Å NOTERE DETTE ET STED
+
     district_matrix = district_matrix.append(r)
 
     distance_matrix = squareform(pdist(district_matrix[["coord_x","coord_y"]]))
@@ -768,13 +809,15 @@ print ""
 print " -------- Test Results -------- "
 print ""
 print "Medianfeil regresjon:",100*round(score.reg_deviation_percentage.median(),5),"%"
-moran, geary = moran.i(test, 100, "regression_residual")
+moran, geary = spatial_measures.get_i_and_c(test, 100, "regression_residual")
+#regression_residual
 print ""
 print "Moran's I: " + str(round(moran, 4)) + " and Geary's C: " + str(round(geary, 4))
-#regression_residual
+print "Within 10%: " + str(round(100 * score.reg_deviation_percentage[score.reg_deviation_percentage <= 0.1].count() / np.float(score.reg_deviation_percentage.size), 2)) + "%"
 print ""
 print "Gjennomsnittsfeil regresjon:",100*round(score.reg_deviation_percentage.mean(),5),"%"
 print score.reg_deviation_percentage.quantile([.25, .5, .75])
+
 print ""
 print "Repeat 1, medianfeil:",100*round(score.rep_1_deviation_percentage.median(),5),"%"
 print score.rep_1_deviation_percentage.quantile([.25, .5, .75])
@@ -782,10 +825,20 @@ print "Repeat 2, medianfeil:",100*round(score.rep_2_deviation_percentage.median(
 print score.rep_2_deviation_percentage.quantile([.25, .5, .75])
 print "Repeat 3, medianfeil:",100*round(score.rep_3_deviation_percentage.median(),5),"%"
 print score.rep_3_deviation_percentage.quantile([.25, .5, .75])
+
+print ""
 print "Basic-estimat, medianfeil:",100*round(score.basic_deviation_percentage.median(),5),"%"
 print score.basic_deviation_percentage.quantile([.25, .5, .75])
+moran, geary = spatial_measures.get_i_and_c(test, 100, "basic_estimate_residual")
+print ""
+print "Moran's I: " + str(round(moran, 4)) + " and Geary's C: " + str(round(geary, 4))
+print "Within 10%: " + str(round(100 * score.basic_deviation_percentage[score.basic_deviation_percentage <= 0.1].count() / np.float(score.basic_deviation_percentage.size), 2)) + "%"
 #basic_estimate_residual
 
 print "Comparable-estimat, medianfeil:",100*round(score.comparable_deviation_percentage.median(),5),"%"
 print score.comparable_deviation_percentage.quantile([.25, .5, .75])
+moran, geary = spatial_measures.get_i_and_c(test, 100, "post_resid_adjustment_residual")
+print ""
+print "Moran's I: " + str(round(moran, 4)) + " and Geary's C: " + str(round(geary, 4))
+print "Within 10%: " + str(round(100 * score.comparable_deviation_percentage[score.comparable_deviation_percentage <= 0.1].count() / np.float(score.comparable_deviation_percentage.size), 2)) + "%"
 #post_resid_adjustment_residual

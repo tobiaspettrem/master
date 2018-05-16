@@ -11,7 +11,7 @@ import statsmodels.api as sm
 import matplotlib.pyplot as plt
 
 
-def i(test, MORANS_SET_SIZE, residual_column_name):
+def get_i_and_c(test, MORANS_SET_SIZE, residual_column_name):
 
     print "Calculating Moran's I and Geary's C"
 

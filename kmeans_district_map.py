@@ -9,23 +9,41 @@ from scipy.spatial.distance import pdist, squareform
 import random
 
 
-def plot_districts(districts, district_column_name, data_set): #districts is a set of unique districts
+def plot_districts(data_set, district_column_name): #districts is a set of unique districts
 
+    districts = list(set( data_set[[district_column_name]].iloc[:,0]))
+
+    number_of_districts = len(districts)
+
+    print districts
+    print "Number of districts: " + str(number_of_districts)
     random.shuffle(districts)
 
     hot = plt.get_cmap('Paired')
-    cNorm  = colors.Normalize(vmin=0, vmax=len(districts))
+    cNorm  = colors.Normalize(vmin=0, vmax=number_of_districts)
     scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=hot)
     plt.ion()
 
     # Plot each species
-    for i in range(len(districts)):
-        index = pd.Series(data_set[[district_column_name]] == districts[i])
+    for i in range(number_of_districts):
+        index = data_set[[district_column_name]].iloc[:,0] == districts[i]
         plt.scatter(data_set.coord_x[index], data_set.coord_y[index], s=10, color=scalarMap.to_rgba(i), label=districts[i])
-
+    district_type = "K-means"
+    if district_column_name == "bydel_code":
+        district_type = "Administrative"
+    plt.title('Number of districts: ' + str(number_of_districts) + ". Type: " + district_type)
     plt.draw()
     plt.pause(0.2)
     print "Updating plot"
+
+#db_link = 'C:/Users/tobiasrp/data/training.csv'
+#virdi = pd.read_csv(db_link)
+#virdi = virdi[["kr/m2", "coord_x", "coord_y", "bydel_code", "kmeans_cluster"]]
+
+
+#print "Plotting districts"
+#plot_districts(virdi, "bydel_code")
+#plot_districts(virdi, "kmeans_cluster")
 
 
 """
