@@ -9,17 +9,20 @@ from scipy.spatial.distance import pdist, squareform
 import random
 
 
-def plot_districts(data_set, district_column_name): #districts is a set of unique districts
+def plot_districts(data_set, district_column_name, PRICE_FACTOR): #districts is a set of unique districts
+    district_type = "K-means"
+    if district_column_name == "bydel_code":
+        district_type = "Administrative"
 
     districts = list(set( data_set[[district_column_name]].iloc[:,0]))
 
     number_of_districts = len(districts)
 
-    print districts
-    print "Number of districts: " + str(number_of_districts)
     random.shuffle(districts)
 
-    hot = plt.get_cmap('Paired')
+    cmap = 'tab20'
+
+    hot = plt.get_cmap(cmap)
     cNorm  = colors.Normalize(vmin=0, vmax=number_of_districts)
     scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=hot)
     plt.ion()
@@ -28,10 +31,7 @@ def plot_districts(data_set, district_column_name): #districts is a set of uniqu
     for i in range(number_of_districts):
         index = data_set[[district_column_name]].iloc[:,0] == districts[i]
         plt.scatter(data_set.coord_x[index], data_set.coord_y[index], s=10, color=scalarMap.to_rgba(i), label=districts[i])
-    district_type = "K-means"
-    if district_column_name == "bydel_code":
-        district_type = "Administrative"
-    plt.title('Number of districts: ' + str(number_of_districts) + ". Type: " + district_type)
+    plt.title('No. districts: ' + str(number_of_districts) + ". Type: " + district_type + ". Price Fact.: " + str(PRICE_FACTOR) + ". Cmap: " + cmap)
     plt.draw()
     plt.pause(0.2)
     print "Updating plot"

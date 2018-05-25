@@ -1,15 +1,11 @@
 # -*- coding: utf-8 -*-
 
 from scipy.spatial.distance import pdist, squareform
-import time
-import alva_io, address
 import pandas as pd
 import numpy as np
-import calendar
+import kmeans
+from math import cos, asin, sqrt
 from patsy import dmatrices
-import statsmodels.api as sm
-import matplotlib.pyplot as plt
-
 
 def get_i_and_c(test, MORANS_SET_SIZE, residual_column_name):
 
@@ -21,10 +17,17 @@ def get_i_and_c(test, MORANS_SET_SIZE, residual_column_name):
     nevner, teller_morans, teller_geary = 0, 0, 0
 
     #comparable_matrix = test.loc[abs(comparable_matrix.coord_x - r.coord_x) + abs(comparable_matrix.coord_y - r.coord_y) < 0.02]
-    distance_matrix = squareform(pdist(test[["coord_x", "coord_y"]]))
+    #distance_matrix = squareform(pdist(test[["coord_x", "coord_y"]]))
 
-    morans_weights_dict = dict()
-
+    comparable_coords = test[["coord_x", "coord_y"]].as_matrix()
+    N = len(comparable_coords)
+    distance_matrix = np.zeros((N,N))
+    for i in range(N):
+        for j in range(N):
+            loni, lati = comparable_coords[i]
+            lonj, latj = comparable_coords[j]
+            distance_matrix[i, j] = kmeans.coord_distance(lati, loni, latj, lonj)
+            distance_matrix[j, i] = distance_matrix[i, j]
     count = 0.0
     size = float(len(test.index))
     old_progress, new_progress = 0,0
@@ -35,12 +38,12 @@ def get_i_and_c(test, MORANS_SET_SIZE, residual_column_name):
         close_ids_test = []
         distance_array = distance_matrix[index]
 
-        max_distance = 0.000025
+        max_distance = 0.01
         prev_max_distance = -1
 
         while len(close_ids) < MORANS_SET_SIZE + 1:
             close_points = (distance_array <= max_distance) & (distance_array > prev_max_distance)
-            if max_distance == 0.000025:
+            if max_distance == 0.01:
                 close_points[index] = False  # exclude itself
             close_ids_test += [test.iloc[i].name for i, close in enumerate(close_points) if close]
             close_ids += [i for i, close in enumerate(close_points) if close]
@@ -84,3 +87,6 @@ def get_i_and_c(test, MORANS_SET_SIZE, residual_column_name):
 
     print ""
     return teller_morans / nevner, (len(test.index) - 1) * teller_geary / (nevner * 2 * len(test.index))
+
+def get_i_and_c(test, MORANS_SET_SIZE, residual_column_name):
+    return 0.5, 0.5

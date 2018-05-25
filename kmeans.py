@@ -6,9 +6,9 @@ import warnings
 warnings.filterwarnings("ignore")
 import pandas as pd
 from sklearn.neighbors import KNeighborsClassifier
+from math import cos, asin, sqrt
 
-K = 16
-PRICE_FACTOR = 1.0/20
+PRICE_FACTOR = 3
 PLOT_MODULO_VALUE = 1000
 plt.ion()
 
@@ -23,7 +23,7 @@ def cluster_points(X, mu):
     clusters  = {}
 
     for x in X:
-        bestmukey = min([(i[0], np.linalg.norm(x[0:3]-mu[i[0]][0:3])) \
+        bestmukey = min([(i[0], np.linalg.norm(np.array([coord_distance(x[1],x[0],mu[i[0]][1],mu[i[0]][0]), x[2] - mu[i[0]][2]]))) \
                     for i in enumerate(mu)], key=lambda t:t[1])[0]
         try:
             clusters[bestmukey].append(x)
@@ -108,8 +108,13 @@ def add_kmeans_districts(df, K):
     clustering = clustering[["id","kmeans_cluster"]]
 
     df = pd.merge(df, pd.DataFrame(clustering), on = "id")
-    return df
+    return df, PRICE_FACTOR
 
+def coord_distance(lat1, lon1, lat2, lon2):
+    p = 0.017453292519943295     #Pi/180
+    a = 0.5 - cos((lat2 - lat1) * p)/2 + cos(lat1 * p) * cos(lat2 * p) * (1 - cos((lon2 - lon1) * p)) / 2
+    res = 12742 * asin(sqrt(a)) #2*R*asin...
+    return res
 
 def predict_kmeans_districts(test, training, KMEANS_K):
 

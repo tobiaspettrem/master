@@ -21,6 +21,8 @@ def add_bydel(df):
     size = float(len(df))
     old_progress, new_progress = 0,0
 
+    print "0%",
+
     for i in range(len(df)):
         row = df.iloc[i]
         district_number = row.bydelsnr
