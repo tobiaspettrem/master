@@ -87,6 +87,3 @@ def get_i_and_c(test, MORANS_SET_SIZE, residual_column_name):
 
     print ""
     return teller_morans / nevner, (len(test.index) - 1) * teller_geary / (nevner * 2 * len(test.index))
-
-def get_i_and_c(test, MORANS_SET_SIZE, residual_column_name):
-    return 0.5, 0.5

@@ -7,16 +7,35 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import pdist, squareform
 import random
+import operator
 
+def plot_districts(data_set, district_column_name, PRICE_FACTOR, RUN_NUMBER): #districts is a set of unique districts
+    price_dict = dict()
 
-def plot_districts(data_set, district_column_name, PRICE_FACTOR): #districts is a set of unique districts
     district_type = "K-means"
     if district_column_name == "bydel_code":
-        district_type = "Administrative"
+        district_type = "Admin"
 
     districts = list(set( data_set[[district_column_name]].iloc[:,0]))
 
     number_of_districts = len(districts)
+
+    # map pricing of districts to get ranking
+    for i in range(number_of_districts):
+        district = districts[i]
+        average_price = data_set.loc[data_set[district_column_name] == district, "kr/m2"].mean()
+        price_dict[district] = average_price
+        print "District: " + str(district) + ", average sqm price: " + str(round(average_price))
+
+    sorted_districts = sorted(price_dict.items(), key=operator.itemgetter(1))
+
+    color_ranking = pd.DataFrame(columns=[district_column_name, "ranking"])
+    for i in range(number_of_districts):
+        color_ranking = color_ranking.append(pd.DataFrame([[sorted_districts[i][0], number_of_districts - i]], columns=[district_column_name, "ranking"]))
+
+    data_set = pd.merge(data_set, color_ranking, how = "left", on = district_column_name)
+
+    print color_ranking
 
     random.shuffle(districts)
 
@@ -25,25 +44,28 @@ def plot_districts(data_set, district_column_name, PRICE_FACTOR): #districts is 
     hot = plt.get_cmap(cmap)
     cNorm  = colors.Normalize(vmin=0, vmax=number_of_districts)
     scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=hot)
-    plt.ion()
+    #plt.ion()
 
     # Plot each species
-    for i in range(number_of_districts):
-        index = data_set[[district_column_name]].iloc[:,0] == districts[i]
-        plt.scatter(data_set.coord_x[index], data_set.coord_y[index], s=10, color=scalarMap.to_rgba(i), label=districts[i])
-    plt.title('No. districts: ' + str(number_of_districts) + ". Type: " + district_type + ". Price Fact.: " + str(PRICE_FACTOR) + ". Cmap: " + cmap)
-    plt.draw()
+    #for i in range(number_of_districts):
+    #    index = data_set[[district_column_name]].iloc[:,0] == districts[i]
+    #    plt.scatter(data_set.coord_x[index], data_set.coord_y[index], s=10, color=scalarMap.to_rgba(i), label=districts[i])
+
+    plt.scatter(data_set.coord_x, data_set.coord_y, s=10, c = data_set.ranking, cmap=plt.cm.RdYlGn)
+    plt.title(str(number_of_districts) + district_type + " districts. Price Fact.: " + str(PRICE_FACTOR) + ". Cmap: " + cmap + ". Run no.: " + str(RUN_NUMBER))
+    plt.show()
     plt.pause(0.2)
     print "Updating plot"
 
-#db_link = 'C:/Users/tobiasrp/data/training.csv'
+
+#db_link = 'C:/Users/tobiasrp/data/training2.csv'
 #virdi = pd.read_csv(db_link)
 #virdi = virdi[["kr/m2", "coord_x", "coord_y", "bydel_code", "kmeans_cluster"]]
 
 
 #print "Plotting districts"
-#plot_districts(virdi, "bydel_code")
-#plot_districts(virdi, "kmeans_cluster")
+#plot_districts(virdi, "bydel_code", 0, 2)
+#plot_districts(virdi, "kmeans_cluster", 3, 2)
 
 
 """

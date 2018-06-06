@@ -121,7 +121,7 @@ def predict_kmeans_districts(test, training, KMEANS_K):
     X = training[["coord_x", "coord_y"]]
     y = training[["kmeans_cluster"]]
 
-    neigh = KNeighborsClassifier(n_neighbors=KMEANS_K)
+    neigh = KNeighborsClassifier(n_neighbors=KMEANS_K, metric='haversine')
     neigh.fit(X, y)
 
     test = test.assign(kmeans_cluster_prediction = neigh.predict(test[["coord_x", "coord_y"]]))

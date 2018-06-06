@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from scipy.spatial.distance import pdist, squareform
-import time
+import time, datetime
 import spatial_measures
 import alva_io, address
 import pandas as pd
@@ -474,7 +474,7 @@ regression_type = "Regression"
 if wp_bool:
     regression_type = "Autoregressive"
 
-csv_results = pd.DataFrame(columns = ["Ordinary" + regression_type, "Repeat Combination"])
+csv_results = pd.DataFrame(columns = ["Ordinary" + regression_type, "Repeat Combination", "Time"])
 ordinary_results = pd.Series()
 repeat_results = pd.Series()
 
@@ -532,6 +532,7 @@ repeat_results = repeat_results.append(pd.Series([moran, geary]), ignore_index=T
 
 csv_results["Ordinary" + regression_type] = ordinary_results
 csv_results["Repeat Combination"] = repeat_results
+csv_results["Time"]  = pd.Series(datetime.datetime.now().strftime ("%c"))
 
 csv_file_name = "C:/Users/" + USER_STRING + "/data/" + regression_type
 
@@ -550,6 +551,7 @@ try:
     f = open(csv_file_name, 'r')
 except IOError:
     header_bool = True
+csv_results = csv_results.append(pd.Series(["","",""]),ignore_index=True)
 
 with open(csv_file_name, 'a') as f:
     csv_results.to_csv(f, header=header_bool)
